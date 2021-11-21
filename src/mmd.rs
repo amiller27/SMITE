@@ -87,7 +87,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             // Note: don't reset, the only use in METIS has maxint = max of Index type
             tag += 1;
 
-            (graph, head, inverse_perm, perm, qsize, marker) = eliminate(
+            let eliminate_result = eliminate(
                 minimum_degree_node,
                 graph,
                 head,
@@ -98,6 +98,12 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
                 marker,
                 tag,
             );
+            graph = eliminate_result.0;
+            head = eliminate_result.1;
+            inverse_perm = eliminate_result.2;
+            perm = eliminate_result.3;
+            qsize = eliminate_result.4;
+            marker = eliminate_result.5;
 
             n_ordered_nodes += qsize[minimum_degree_node];
             ehead.insert(0, minimum_degree_node);
@@ -113,7 +119,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             break;
         }
 
-        (minimum_degree, head, inverse_perm, perm, qsize, marker, tag) = update(
+        let update_result = update(
             ehead,
             &graph,
             DELTA,
@@ -125,6 +131,13 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             marker,
             tag,
         );
+        minimum_degree = update_result.0;
+        head = update_result.1;
+        inverse_perm = update_result.2;
+        perm = update_result.3;
+        qsize = update_result.4;
+        marker = update_result.5;
+        tag = update_result.6;
     }
 
     return numbering(graph.n_vertices(), inverse_perm, qsize);
@@ -142,6 +155,7 @@ enum BackPtr {
     None,
 }
 
+#[derive(Clone, PartialEq)]
 enum ForwardPtr {
     Next(usize),
     NextNeg(usize),
@@ -296,7 +310,7 @@ fn eliminate(
         } else {
             // flag rnode for degree update, and add minimum_degree_node as a
             // neighbor of rnode
-            forward[rnode] = graph.degree(rnode);
+            forward[rnode] = ForwardPtr::Next(graph.degree(rnode));
             backward[rnode] = BackPtr::None;
             graph.adjacency[rnode].push(minimum_degree_node);
         }
@@ -306,30 +320,72 @@ fn eliminate(
 }
 
 fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usize>) -> MMDResult {
-    let mut perm = vec![0; n_vertices];
-    let mut iperm = vec![0; n_vertices];
+    let mut iperm = vec![ForwardPtr::None; n_vertices];
 
+    let mut perm = vec![ForwardPtr::None; n_vertices];
     for node in 0..n_vertices {
         if qsize[node] == 0 {
             let ForwardPtr::NextNeg(i) = in_inverse_perm[node];
-            perm[node] = i;
-        } else if qsize[node] < 0 {
-            let ForwardPtr::Next(i) = in_inverse_perm[node];
-            perm[node] = i;
+            perm[node] = ForwardPtr::Next(i);
         } else {
+            // qsize > 0
             let ForwardPtr::NextNeg(i) = in_inverse_perm[node];
-            perm[node] = i;
+            perm[node] = ForwardPtr::NextNeg(i);
         }
     }
 
     // for each node which has been merged, do the following
     for node in 0..n_vertices {
-        if perm[node] <= 0
+        if matches!(perm[node], ForwardPtr::NextNeg(_)) {
+            // trace the merged tree until one which has not been merged, call it root
+            let mut father = node;
+            while let ForwardPtr::NextNeg(i) = perm[father] {
+                father = i;
+            }
+
+            // number node after root
+            let root = father;
+            let ForwardPtr::Next(i) = perm[root];
+            let num = i + 1;
+            iperm[node] = ForwardPtr::NextNeg(num);
+            perm[root] = ForwardPtr::Next(num);
+
+            // shorten the merged tree
+            let mut father = node;
+            let mut nextf = perm[father];
+            while matches!(nextf, ForwardPtr::NextNeg(_)) {
+                perm[father] = ForwardPtr::NextNeg(root);
+                father = match nextf {
+                    ForwardPtr::NextNeg(i) => i,
+                    _ => panic!(),
+                };
+                nextf = perm[father];
+            }
+        }
+    }
+
+    // ready to compute perm
+    for node in 0..n_vertices {
+        let ForwardPtr::Next(num) = iperm[node];
+        iperm[node] = ForwardPtr::Next(num);
+        perm[num] = ForwardPtr::Next(node);
     }
 
     MMDResult {
-        iperm: iperm,
-        perm: perm,
+        iperm: iperm
+            .iter()
+            .map(|&f| match f {
+                ForwardPtr::Next(i) => i,
+                _ => panic!(),
+            })
+            .collect(),
+        perm: perm
+            .iter()
+            .map(|&f| match f {
+                ForwardPtr::Next(i) => i,
+                _ => panic!(),
+            })
+            .collect(),
     }
 }
 
@@ -358,16 +414,17 @@ fn update(
     for element in ehead {
         // for each of the newly formed elements, do the following.  reset tag value if necessary
         let m_tag = tag + minimum_degree_0;
-        if m_tag >= max_int {
-            tag = 1;
-            for i in 0..graph.n_vertices() {
-                if !matches!(marker[i], Marker::Maxint) {
-                    marker[i] = Marker::Zero;
-                }
-            }
+        // I _think_ we never have to reset here (assuming we use int64)
+        //if m_tag >= max_int {
+        //    tag = 1;
+        //    for i in 0..graph.n_vertices() {
+        //        if !matches!(marker[i], Marker::Maxint) {
+        //            marker[i] = Marker::Zero;
+        //        }
+        //    }
 
-            m_tag = tag + minimum_degree_0;
-        }
+        //    m_tag = tag + minimum_degree_0;
+        //}
 
         // create two linked lists from nodes associated with 'element'
         // one with two neighbors (q2head) in the adjacency structure, and the
@@ -385,7 +442,7 @@ fn update(
             // enode requires a degree update
             if matches!(backward[enode], BackPtr::None) {
                 // place either in qx or q2 list
-                if forward[enode] != 2 {
+                if forward[enode] != ForwardPtr::Next(2) {
                     qx.insert(0, enode);
                 } else {
                     q2.insert(0, enode);
@@ -418,7 +475,7 @@ fn update(
                             marker[node] = Marker::Tag(tag);
                             deg += qsize[node] as i32;
                         } else if matches!(backward[node], BackPtr::None) {
-                            if forward[node] == 2 {
+                            if forward[node] == ForwardPtr::Next(2) {
                                 // node is indistinguishable from enode.
                                 // merge them into a new supernode.
                                 qsize[enode] += qsize[node];

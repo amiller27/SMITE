@@ -1,5 +1,3 @@
-#![feature(rand)]
-
 extern crate rand;
 
 use crate::config::{Config, InitialPartitioningType};
