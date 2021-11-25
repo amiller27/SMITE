@@ -13,18 +13,19 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
         panic!();
     }
 
-    let graph = MutableGraph::from_graph(full_graph);
+    let mut graph = MutableGraph::from_graph(full_graph);
 
-    let mut nnz_upper_bound = 0;
-    let (mut head, mut inverse_perm, mut perm, mut qsize, mut list, mut marker) =
+    // Never read, REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+    // let mut nnz_upper_bound = 0;
+
+    let (mut head, mut inverse_perm, mut perm, mut qsize, mut _list, mut marker) =
         initialization(&graph);
 
     let mut n_ordered_nodes = 0;
 
     // eliminate all isolated nodes
     let mut next_minimum_degree_node = head[0];
-    while matches!(next_minimum_degree_node, ForwardPtr::Next(_)) {
-        let ForwardPtr::Next(minimum_degree_node) = next_minimum_degree_node;
+    while let ForwardPtr::Next(minimum_degree_node) = next_minimum_degree_node {
         next_minimum_degree_node = inverse_perm[minimum_degree_node];
         marker[minimum_degree_node] = Marker::Zero;
         inverse_perm[minimum_degree_node] = ForwardPtr::NextNeg(n_ordered_nodes);
@@ -49,10 +50,10 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
         // n500
         loop {
-            let maybe_minimum_degree_node = head[minimum_degree];
+            let mut maybe_minimum_degree_node = head[minimum_degree];
 
             // This can be simplified if DELTA == 1, which is the only way this is used in METIS
-            let hit_limit = false;
+            let mut hit_limit = false;
             while matches!(maybe_minimum_degree_node, ForwardPtr::None) {
                 minimum_degree += 1;
 
@@ -68,7 +69,10 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
                 break;
             }
 
-            let ForwardPtr::Next(minimum_degree_node) = maybe_minimum_degree_node;
+            let minimum_degree_node = match maybe_minimum_degree_node {
+                ForwardPtr::Next(i) => i,
+                _ => panic!(),
+            };
 
             // remove minimum_degree_node from the degree structure
             let next_minimum_degree_node = inverse_perm[minimum_degree_node];
@@ -77,7 +81,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
                 perm[i] = BackPtr::Degree(minimum_degree);
             }
             inverse_perm[minimum_degree_node] = ForwardPtr::NextNeg(n_ordered_nodes);
-            nnz_upper_bound += minimum_degree + qsize[minimum_degree_node] - 1;
+            // nnz_upper_bound += minimum_degree + qsize[minimum_degree_node] - 1;
             if n_ordered_nodes + qsize[minimum_degree_node] > graph.n_vertices() {
                 return numbering(graph.n_vertices(), inverse_perm, qsize);
             }
@@ -94,7 +98,6 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
                 inverse_perm,
                 perm,
                 qsize,
-                list,
                 marker,
                 tag,
             );
@@ -148,6 +151,7 @@ enum DoubleIndex {
     Pos(usize),
 }
 
+#[derive(Clone, Copy)]
 enum BackPtr {
     Previous(usize),
     Degree(usize),
@@ -155,13 +159,14 @@ enum BackPtr {
     None,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Copy)]
 enum ForwardPtr {
     Next(usize),
     NextNeg(usize),
     None,
 }
 
+#[derive(Clone)]
 enum Marker {
     Maxint,
     Zero,
@@ -183,9 +188,9 @@ fn initialization(
     let marker = vec![Marker::Zero; graph.n_vertices()];
 
     /* initialize the degree doubly linked lists */
-    let head = vec![ForwardPtr::None; graph.n_vertices()];
-    let forward = vec![ForwardPtr::None; graph.n_vertices()];
-    let backward = vec![BackPtr::None; graph.n_vertices()];
+    let mut head = vec![ForwardPtr::None; graph.n_vertices()];
+    let mut forward = vec![ForwardPtr::None; graph.n_vertices()];
+    let mut backward = vec![BackPtr::None; graph.n_vertices()];
     for node in 0..graph.n_vertices() {
         let degree = graph.degree(node); // off by one?
 
@@ -209,12 +214,11 @@ fn initialization(
 fn eliminate(
     minimum_degree_node: usize,
     mut graph: MutableGraph,
-    head: Vec<ForwardPtr>,
-    forward: Vec<ForwardPtr>,
-    backward: Vec<BackPtr>,
-    qsize: Vec<usize>,
-    list: Vec<Index>,
-    marker: Vec<Marker>,
+    mut head: Vec<ForwardPtr>,
+    mut forward: Vec<ForwardPtr>,
+    mut backward: Vec<BackPtr>,
+    mut qsize: Vec<usize>,
+    mut marker: Vec<Marker>,
     tag: usize,
 ) -> (
     MutableGraph,
@@ -324,12 +328,15 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
 
     let mut perm = vec![ForwardPtr::None; n_vertices];
     for node in 0..n_vertices {
+        let i = match in_inverse_perm[node] {
+            ForwardPtr::NextNeg(i) => i,
+            _ => panic!(),
+        };
+
         if qsize[node] == 0 {
-            let ForwardPtr::NextNeg(i) = in_inverse_perm[node];
             perm[node] = ForwardPtr::Next(i);
         } else {
             // qsize > 0
-            let ForwardPtr::NextNeg(i) = in_inverse_perm[node];
             perm[node] = ForwardPtr::NextNeg(i);
         }
     }
@@ -345,7 +352,11 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
 
             // number node after root
             let root = father;
-            let ForwardPtr::Next(i) = perm[root];
+            let i = match perm[root] {
+                ForwardPtr::Next(i) => i,
+                _ => panic!(),
+            };
+
             let num = i + 1;
             iperm[node] = ForwardPtr::NextNeg(num);
             perm[root] = ForwardPtr::Next(num);
@@ -366,7 +377,10 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
 
     // ready to compute perm
     for node in 0..n_vertices {
-        let ForwardPtr::Next(num) = iperm[node];
+        let num = match iperm[node] {
+            ForwardPtr::Next(num) => num,
+            _ => panic!(),
+        };
         iperm[node] = ForwardPtr::Next(num);
         perm[num] = ForwardPtr::Next(node);
     }
@@ -409,7 +423,7 @@ fn update(
     Vec<Marker>,
     usize,
 ) {
-    let mut minimum_degree_0 = minimum_degree + DELTA;
+    let minimum_degree_0 = minimum_degree + DELTA;
     // n100
     for element in ehead {
         // for each of the newly formed elements, do the following.  reset tag value if necessary
@@ -453,7 +467,7 @@ fn update(
         // for each node in q2 list, do the following
         for enode in q2 {
             tag += 1;
-            let deg = deg0;
+            let mut deg = deg0;
 
             // identify the other adjacent element neighbor
             let mut neighbor = graph.adjacency[enode][0];
@@ -514,7 +528,7 @@ fn update(
         // for each enode in the qx list, do the following
         for enode in qx {
             tag += 1;
-            let deg = deg0;
+            let mut deg = deg0;
 
             // for each unmarked neighbor of enode, do the following
             for &neighbor in graph.neighbors(enode) {

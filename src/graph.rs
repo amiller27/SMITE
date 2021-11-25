@@ -54,7 +54,7 @@ impl WeightedGraph {
         let end = self.graph.x_adjacency[vertex + 1];
         self.graph.adjacency_lists[start..end]
             .iter()
-            .zip(self.edge_weights.unwrap()[start..end].iter())
+            .zip(self.edge_weights.as_ref().unwrap()[start..end].iter())
     }
 }
 
@@ -83,7 +83,7 @@ impl MutableGraph {
         self.adjacency.len()
     }
 
-    pub fn add_neighbor(&self, vertex: usize, neighbor: usize) {
+    pub fn add_neighbor(&mut self, vertex: usize, neighbor: usize) {
         self.adjacency[vertex].push(neighbor);
     }
 }

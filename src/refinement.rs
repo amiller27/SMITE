@@ -29,9 +29,9 @@ pub struct WhereIdEd {
 }
 
 pub fn compute_two_way_partitioning_params(
-    config: &Config,
+    _config: &Config,
     graph: WeightedGraph,
-    where_id_ed: WhereIdEd,
+    mut where_id_ed: WhereIdEd,
 ) -> (i32, WhereIdEd, BoundaryInfo) {
     // ncon had better be 1!!!!
 
@@ -43,21 +43,22 @@ pub fn compute_two_way_partitioning_params(
 
     // compute partition_weights
     for i in 0..graph.graph.n_vertices() {
-        boundary_info.partition_weights[where_id_ed._where[i]] += graph.vertex_weights.unwrap()[i];
+        boundary_info.partition_weights[where_id_ed._where[i]] +=
+            graph.vertex_weights.as_ref().unwrap()[i];
     }
 
     //compute the required info for refinement
     let mut min_cut = 0;
     for i in 0..graph.graph.n_vertices() {
         let me = where_id_ed._where[i];
-        let tid = 0;
-        let ted = 0;
+        let mut tid = 0;
+        let mut ted = 0;
 
         for j in graph.graph.x_adjacency[i]..graph.graph.x_adjacency[i + 1] {
             if me == where_id_ed._where[graph.graph.adjacency_lists[j]] {
-                tid += graph.edge_weights.unwrap()[j];
+                tid += graph.edge_weights.as_ref().unwrap()[j];
             } else {
-                ted += graph.edge_weights.unwrap()[j];
+                ted += graph.edge_weights.as_ref().unwrap()[j];
             }
         }
 

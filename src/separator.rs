@@ -25,7 +25,7 @@ pub fn construct_separator(
             config, *graph, _where,
         );
 
-    let (min_cut, boundary_info) = crate::fm_separator_refinement::two_way_node_refine_two_sided(
+    let (_min_cut, boundary_info) = crate::fm_separator_refinement::two_way_node_refine_two_sided(
         config,
         *graph,
         crate::separator_refinement::BoundaryInfo {

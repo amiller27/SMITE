@@ -35,8 +35,8 @@ fn two_way_cut_refine<RNG>(
     total_vertex_weights: i32,
     n_t_partition_weights: [f32; 2],
     mut min_cut: i32,
-    boundary_info: BoundaryInfo,
-    where_id_ed: WhereIdEd,
+    mut boundary_info: BoundaryInfo,
+    mut where_id_ed: WhereIdEd,
     rng: &mut RNG,
 ) -> (i32, BoundaryInfo, WhereIdEd)
 where
@@ -63,14 +63,14 @@ where
 
     let mut moved = vec![None; graph.graph.n_vertices()];
 
-    for pass in 0..config.n_iterations {
+    for _pass in 0..config.n_iterations {
         // do a number of passes
-        queues.iter().for_each(|q| q.reset());
+        queues.iter_mut().for_each(|q| q.reset());
 
-        let min_cut_order = -1;
-        let new_cut = min_cut;
+        let mut min_cut_order = -1;
+        let mut new_cut = min_cut;
         let init_cut = min_cut;
-        let min_diff = (total_partition_weights[0] - boundary_info.partition_weights[0]).abs();
+        let mut min_diff = (total_partition_weights[0] - boundary_info.partition_weights[0]).abs();
 
         let perm = crate::random::permutation(
             boundary_info.boundary_ind.len(),
@@ -103,12 +103,17 @@ where
                 break;
             }
 
-            let Some(high_gain) = maybe_high_gain;
+            let high_gain = match maybe_high_gain {
+                Some(high_gain) => high_gain,
+                None => panic!(),
+            };
 
             new_cut -= where_id_ed.ed[high_gain] - where_id_ed.id[high_gain];
 
-            boundary_info.partition_weights[to] += graph.vertex_weights.unwrap()[high_gain];
-            boundary_info.partition_weights[from] -= graph.vertex_weights.unwrap()[high_gain];
+            boundary_info.partition_weights[to] +=
+                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[from] -=
+                graph.vertex_weights.as_ref().unwrap()[high_gain];
 
             let new_diff = (total_partition_weights[0] - boundary_info.partition_weights[0]).abs();
             if (new_cut < min_cut && new_diff <= orig_diff + average_vertex_weight)
@@ -119,10 +124,14 @@ where
                 min_cut_order = n_swaps as i32;
             } else if n_swaps as i32 - min_cut_order > limit {
                 // we hit the limit, undo last move
-                new_cut += where_id_ed.ed[high_gain] - where_id_ed.id[high_gain];
 
-                boundary_info.partition_weights[to] -= graph.vertex_weights.unwrap()[high_gain];
-                boundary_info.partition_weights[from] += graph.vertex_weights.unwrap()[high_gain];
+                // Never read:
+                // new_cut += where_id_ed.ed[high_gain] - where_id_ed.id[high_gain];
+
+                boundary_info.partition_weights[to] -=
+                    graph.vertex_weights.as_ref().unwrap()[high_gain];
+                boundary_info.partition_weights[from] +=
+                    graph.vertex_weights.as_ref().unwrap()[high_gain];
                 break;
             }
 
@@ -178,8 +187,8 @@ where
         }
 
         // roll back computations
-        for swap in swaps {
-            moved[swap] = None;
+        for swap in swaps.iter() {
+            moved[*swap] = None;
         }
 
         for i_swap in (((min_cut_order + 1) as usize)..swaps.len()).rev() {
@@ -210,8 +219,10 @@ where
                 boundary_info.insert(high_gain);
             }
 
-            boundary_info.partition_weights[to] += graph.vertex_weights.unwrap()[high_gain];
-            boundary_info.partition_weights[from] -= graph.vertex_weights.unwrap()[high_gain];
+            boundary_info.partition_weights[to] +=
+                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[from] -=
+                graph.vertex_weights.as_ref().unwrap()[high_gain];
 
             for (&k, &adjacency_weight) in graph.weighted_neighbors(high_gain) {
                 let k_weight = if to == where_id_ed._where[k] {

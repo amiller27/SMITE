@@ -26,7 +26,8 @@ pub fn bucket_sort_keys_increasing(max: usize, keys: &Vec<usize>) -> (Vec<usize>
 
     make_csr(max, &mut counts);
 
-    let mut tperm = vec![0; keys.len()];
+    // WTF
+    let tperm = vec![0; keys.len()];
     let mut perm = vec![0; keys.len()];
 
     for i in 0..keys.len() {

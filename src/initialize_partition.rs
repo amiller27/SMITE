@@ -20,14 +20,14 @@ where
     // this is required for the cut-based part of the refinement
     let balance_multipliers = setup_two_way_balance_multipliers(
         config,
-        coarsest_level.graph,
+        //coarsest_level.graph,
         coarsest_level.total_vertex_weights,
         n_t_partition_weights,
     );
 
-    let (min_cut, boundary_info, where_id_ed) = match config.initial_partitioning_type {
+    let (_min_cut, _boundary_info, where_id_ed) = match config.initial_partitioning_type {
         InitialPartitioningType::EDGE => {
-            let (min_cut, where_id_ed, boundary_info) =
+            let (_min_cut, where_id_ed, _boundary_info) =
                 if coarsest_level.graph.graph.adjacency_lists.len() == 0 {
                     panic!("Not implemented")
                 } else {
@@ -42,7 +42,7 @@ where
                     )
                 };
 
-            let (min_cut, where_id_ed, boundary_info) =
+            let (_min_cut, where_id_ed, boundary_info) =
                 crate::refinement::compute_two_way_partitioning_params(
                     config,
                     coarsest_level.graph,
@@ -73,7 +73,7 @@ where
 
 fn setup_two_way_balance_multipliers(
     config: &Config,
-    graph: WeightedGraph,
+    // graph: WeightedGraph,
     total_vertex_weights: i32,
     n_t_partition_weights: [f32; 2],
 ) -> Vec<f32> {
@@ -118,7 +118,7 @@ where
     let mut best_cut = 0;
     let mut best_where = vec![0; graph.graph.n_vertices()];
     let mut queue = vec![0; graph.graph.n_vertices()];
-    let mut touched = vec![false; graph.graph.n_vertices()];
+    // let mut touched = vec![false; graph.graph.n_vertices()];
 
     let one_max_partition_weight =
         (config.ub_factors[0] * total_vertex_weights as f32 * n_t_partition_weights[1]) as i32;
@@ -128,7 +128,7 @@ where
 
     for i_n_bfs in 0..n_i_parts {
         where_id_ed._where = vec![1; graph.graph.n_vertices()];
-        touched = vec![false; graph.graph.n_vertices()];
+        let mut touched = vec![false; graph.graph.n_vertices()];
 
         boundary_info.partition_weights[0] = 0;
         boundary_info.partition_weights[1] = total_vertex_weights;
@@ -136,10 +136,10 @@ where
         queue[0] = rng.gen_range(0..graph.graph.n_vertices());
         touched[queue[0]] = true;
 
-        let first = 0;
-        let last = 1;
-        let n_left = graph.graph.n_vertices() - 1;
-        let drain = false;
+        let mut first = 0;
+        let mut last = 1;
+        let mut n_left = graph.graph.n_vertices() - 1;
+        let mut drain = false;
 
         // start the BFS from queue to get a partition
         loop {
@@ -166,7 +166,7 @@ where
             first += 1;
 
             if boundary_info.partition_weights[0] > 0
-                && boundary_info.partition_weights[1] - graph.vertex_weights.unwrap()[i]
+                && boundary_info.partition_weights[1] - graph.vertex_weights.as_ref().unwrap()[i]
                     < one_min_partition_weight
             {
                 drain = true;
@@ -174,8 +174,8 @@ where
             }
 
             where_id_ed._where[i] = 0;
-            boundary_info.partition_weights[0] += graph.vertex_weights.unwrap()[i];
-            boundary_info.partition_weights[1] -= graph.vertex_weights.unwrap()[i];
+            boundary_info.partition_weights[0] += graph.vertex_weights.as_ref().unwrap()[i];
+            boundary_info.partition_weights[1] -= graph.vertex_weights.as_ref().unwrap()[i];
 
             if boundary_info.partition_weights[1] <= one_max_partition_weight {
                 break;
@@ -222,7 +222,7 @@ where
             rng,
         );
         min_cut = new_boundary.0;
-        boundary_info = new_boundary.1;
+        // boundary_info = new_boundary.1;
         where_id_ed = new_boundary.2;
 
         if i_n_bfs == 0 || best_cut > min_cut {

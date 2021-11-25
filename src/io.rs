@@ -9,18 +9,21 @@ where
     P: AsRef<Path>,
 {
     let file = File::open(filename)?;
-    let lines = io::BufReader::new(file)
+    let mut lines = io::BufReader::new(file)
         .lines()
-        .filter(|s| !s.unwrap().starts_with("%"));
+        .filter(|s| !s.as_ref().unwrap().starts_with("%"));
 
-    let Some(Ok(line)) = lines.next();
+    let line = match lines.next() {
+        Some(Ok(line)) => line,
+        _ => panic!(),
+    };
 
     let v = line
         .split_whitespace()
         .take(4)
         .map(|s| s.parse().ok().unwrap())
         .collect::<Vec<usize>>();
-    let [n_vertices, n_edges, _ignored, n_constraints] = <[usize; 4]>::try_from(v).ok().unwrap();
+    let [_n_vertices, _n_edges, _ignored, n_constraints] = <[usize; 4]>::try_from(v).ok().unwrap();
 
     let mut graph = WeightedGraph {
         graph: Graph {
@@ -31,7 +34,7 @@ where
         vertex_weights: Some(vec![]),
     };
 
-    lines.enumerate().for_each(|(i, maybe_line)| {
+    lines.enumerate().for_each(|(_i, maybe_line)| {
         if let Ok(line) = maybe_line {
             let numbers = line
                 .split_whitespace()
@@ -43,7 +46,7 @@ where
                 .x_adjacency
                 .push(graph.graph.adjacency_lists.len());
             for weight in numbers[..n_constraints as usize].iter() {
-                graph.vertex_weights.unwrap().push(*weight as i32);
+                graph.vertex_weights.as_mut().unwrap().push(*weight as i32);
             }
             graph
                 .graph

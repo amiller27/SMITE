@@ -34,6 +34,7 @@ where
         false => None,
     };
 
+    let n_vertices = graph.n_vertices();
     let (compressed_graph, info, labels) = match maybe_compressed_graph {
         Some((
             compressed_graph,
@@ -55,10 +56,11 @@ where
                 None => WeightedGraph::from_unweighted(graph),
             },
             GraphData::Uncompressed,
-            (0..graph.n_vertices()).collect(),
+            (0..n_vertices).collect(),
         ),
     };
 
+    let compressed_n_vertices = compressed_graph.graph.n_vertices();
     let mut inverse_permutation = vec![0; compressed_graph.graph.n_vertices()];
     if config.connected_components_order {
         m_level_nested_dissection_connected_components(
@@ -79,17 +81,17 @@ where
         )
     }
 
-    let mut permutation = vec![0; graph.n_vertices()];
+    let mut permutation = vec![0; n_vertices];
     if let GraphData::Compressed(compressed_to_uncompressed_ptr, compressed_to_uncompressed) = info
     {
         // uncompress the ordering
         // construct perm from iperm
-        for i in 0..compressed_graph.graph.n_vertices() {
+        for i in 0..compressed_n_vertices {
             permutation[inverse_permutation[i]] = i;
         }
 
         let mut l = 0;
-        for ii in 0..compressed_graph.graph.n_vertices() {
+        for ii in 0..compressed_n_vertices {
             let i = permutation[ii];
             for j in compressed_to_uncompressed_ptr[i]..compressed_to_uncompressed_ptr[i + 1] {
                 inverse_permutation[compressed_to_uncompressed[j]] = l;
@@ -98,7 +100,7 @@ where
         }
     }
 
-    for i in 0..graph.n_vertices() {
+    for i in 0..n_vertices {
         permutation[inverse_permutation[i]] = i;
     }
 
@@ -109,11 +111,11 @@ where
 }
 
 fn m_level_nested_dissection_connected_components(
-    config: &Config,
-    graph: WeightedGraph,
-    labels: Vec<usize>,
-    first_vertex: usize,
-    order: &mut Vec<usize>,
+    _config: &Config,
+    _graph: WeightedGraph,
+    _labels: Vec<usize>,
+    _first_vertex: usize,
+    _order: &mut Vec<usize>,
 ) {
     panic!("Not implemented");
 }
@@ -128,34 +130,23 @@ fn m_level_nested_dissection<RNG>(
 ) where
     RNG: rand::Rng,
 {
+    let n_vertices = graph.graph.n_vertices();
     let boundarized_pyramid = m_level_node_bisection_multiple(config, graph, rng);
     let coarsest_level = boundarized_pyramid.last().unwrap();
 
     for (i, &vertex) in coarsest_level.boundary_info.boundary_ind.iter().enumerate() {
-        order[labels[vertex]] = first_vertex + graph.graph.n_vertices() - i;
+        order[labels[vertex]] = first_vertex + n_vertices - i;
     }
 
     let (left_graph, left_labels, right_graph, right_labels) =
         split_graph_order(config, graph, coarsest_level.boundary_info, &labels);
 
     const MMD_SWITCH: usize = 120;
+    let left_n_vertices = left_graph.graph.n_vertices();
     if left_graph.graph.n_vertices() > MMD_SWITCH && left_graph.graph.n_edges() > 0 {
-        m_level_nested_dissection(
-            config,
-            left_graph,
-            left_labels,
-            first_vertex,
-            &mut order,
-            rng,
-        )
+        m_level_nested_dissection(config, left_graph, left_labels, first_vertex, order, rng)
     } else {
-        mmd_order(
-            config,
-            left_graph.graph,
-            &left_labels,
-            first_vertex,
-            &mut order,
-        );
+        mmd_order(config, left_graph.graph, &left_labels, first_vertex, order);
     }
 
     if right_graph.graph.n_vertices() > MMD_SWITCH && right_graph.graph.n_edges() > 0 {
@@ -163,8 +154,8 @@ fn m_level_nested_dissection<RNG>(
             config,
             right_graph,
             right_labels,
-            first_vertex + left_graph.graph.n_vertices(),
-            &mut order,
+            first_vertex + left_n_vertices,
+            order,
             rng,
         )
     } else {
@@ -172,8 +163,8 @@ fn m_level_nested_dissection<RNG>(
             config,
             right_graph.graph,
             &right_labels,
-            first_vertex + left_graph.graph.n_vertices(),
-            &mut order,
+            first_vertex + left_n_vertices,
+            order,
         )
     }
 }
@@ -218,16 +209,13 @@ fn m_level_node_bisection_l1<RNG>(
 where
     RNG: rand::Rng,
 {
+    let n_vertices = graph.graph.n_vertices();
     let coarsen_to = (graph.graph.n_vertices() / 8).clamp(40, 100);
-    let graph_pyramid = crate::coarsen::coarsen_graph(
-        config,
-        graph,
-        coarsen_to,
-        graph.vertex_weights.unwrap().iter().sum(),
-    );
+    let total_weights = graph.vertex_weights.as_ref().unwrap().iter().sum();
+    let graph_pyramid = crate::coarsen::coarsen_graph(config, graph, coarsen_to, total_weights);
     let n_i_parts = std::cmp::max(
         1,
-        if graph.graph.n_vertices() <= coarsen_to {
+        if n_vertices <= coarsen_to {
             config.init_n_i_parts() / 2
         } else {
             config.init_n_i_parts()
@@ -235,18 +223,19 @@ where
     );
     let separated_graph_pyramid =
         crate::initialize_partition::initialize_separator(config, graph_pyramid, n_i_parts, rng);
+    let which_graph = separated_graph_pyramid.len() - 1;
     let boundarized_pyramid = crate::separator_refinement::refine_two_way_node(
         config,
         separated_graph_pyramid,
         0,
-        separated_graph_pyramid.len() - 1,
+        which_graph,
     );
 
     boundarized_pyramid
 }
 
 fn split_graph_order(
-    config: &Config,
+    _config: &Config,
     graph: WeightedGraph,
     boundary_info: crate::separator_refinement::BoundaryInfo,
     labels: &Vec<usize>,
@@ -285,7 +274,7 @@ fn split_graph_order(
 
         if !is_boundary[i] {
             /* This is an interior vertex */
-            for (i, &neighbor) in graph.graph.neighbors(i).iter().enumerate() {
+            for &neighbor in graph.graph.neighbors(i) {
                 split_adjacency[my_part].push(neighbor);
             }
         } else {
@@ -296,7 +285,7 @@ fn split_graph_order(
             }
         }
 
-        split_vertex_weights[my_part].push(graph.vertex_weights.unwrap()[i]);
+        split_vertex_weights[my_part].push(graph.vertex_weights.as_ref().unwrap()[i]);
         split_labels[my_part].push(labels[i]);
         split_x_adjacency[my_part].push(split_adjacency[my_part].len()); // off by one?
     }
@@ -336,16 +325,17 @@ fn split_graph_order(
 }
 
 fn mmd_order(
-    config: &Config,
+    _config: &Config,
     graph: Graph,
     labels: &Vec<usize>,
     first_vertex: usize,
     order: &mut Vec<usize>,
 ) {
+    let n_vertices = graph.n_vertices();
     let mmd_result = crate::mmd::gen_mmd(graph);
 
     // This puts iperm back into the _global_ ordering, meaning order should be an in-out...
-    for i in 0..graph.n_vertices() {
+    for i in 0..n_vertices {
         order[labels[i]] = first_vertex + mmd_result.iperm[i];
     }
 }

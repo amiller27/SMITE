@@ -30,7 +30,7 @@ pub fn refine_two_way_node(
     config: &Config,
     graph_pyramid: Vec<GraphPyramidLevel>,
     org_graph: usize,
-    graph: usize,
+    mut graph: usize,
 ) -> Vec<BoundarizedGraphPyramidLevel> {
     let mut boundarized_pyramid = Vec::new();
 
@@ -56,7 +56,7 @@ pub fn refine_two_way_node(
                 graph_pyramid[graph].total_vertex_weights,
             );
 
-            let (min_cut, boundary_info) = match config.refinement_type {
+            let (_min_cut, boundary_info) = match config.refinement_type {
                 RefinementType::SEP1SIDED => {
                     crate::fm_separator_refinement::two_way_node_refine_one_sided(
                         config,
@@ -114,7 +114,7 @@ fn project_two_way_node_partition(
 }
 
 pub fn compute_two_way_node_partitioning_params(
-    config: &Config,
+    _config: &Config,
     graph: WeightedGraph,
     graph_where: Vec<usize>,
 ) -> ([i32; 3], Vec<usize>, Vec<Option<usize>>, Vec<NrInfo>) {
@@ -125,7 +125,7 @@ pub fn compute_two_way_node_partitioning_params(
 
     for i in 0..graph.graph.n_vertices() {
         let me = graph_where[i];
-        partition_weights[me] += graph.vertex_weights.unwrap()[i];
+        partition_weights[me] += graph.vertex_weights.as_ref().unwrap()[i];
 
         if me == 2 {
             // if it is on the separator do some computations
@@ -136,7 +136,8 @@ pub fn compute_two_way_node_partitioning_params(
             for neighbor in graph.graph.neighbors(i) {
                 let other = graph_where[*neighbor];
                 if other != 2 {
-                    nr_info.e_degrees[other] += graph.vertex_weights.unwrap()[*neighbor] as usize;
+                    nr_info.e_degrees[other] +=
+                        graph.vertex_weights.as_ref().unwrap()[*neighbor] as usize;
                 }
             }
 
@@ -144,7 +145,7 @@ pub fn compute_two_way_node_partitioning_params(
         }
     }
 
-    let min_cut = partition_weights[2];
+    let _min_cut = partition_weights[2];
 
     (
         partition_weights,

@@ -11,20 +11,20 @@ where
 {
     let mut p = vec![0; n];
 
-    if let Identity = mode {
+    if let Mode::Identity = mode {
         for i in 0..n {
             p[i] = i;
         }
     }
 
     if n < 10 {
-        for i in 0..n {
+        for _i in 0..n {
             let v = rng.gen_range(0..n);
             let u = rng.gen_range(0..n);
             p.swap(v, u);
         }
     } else {
-        for i in 0..n_shuffles {
+        for _i in 0..n_shuffles {
             let v = rng.gen_range(0..n - 3);
             let u = rng.gen_range(0..n - 3);
             p.swap(v + 0, u + 2);
