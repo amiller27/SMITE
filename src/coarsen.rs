@@ -7,6 +7,9 @@ pub struct CoarseGraphResult {
     pub coarsening_map: Vec<usize>,
 }
 
+/**
+ * Returns the coarsening pyramid, with the original graph first, followed by coarser levels in order
+ */
 pub fn coarsen_graph(
     config: &Config,
     graph: WeightedGraph,
@@ -30,7 +33,7 @@ pub fn coarsen_graph(
     }];
 
     loop {
-        let graph = pyramid.last().unwrap().graph;
+        let graph = &pyramid.last().as_ref().unwrap().graph;
 
         let last_n_vertices = graph.graph.n_vertices();
 
@@ -44,7 +47,7 @@ pub fn coarsen_graph(
                 }
             }
         };
-        let graph = coarse_graph_result.graph;
+        let graph = &coarse_graph_result.graph;
 
         let keep_going = graph.graph.n_vertices() > coarsen_to
             && graph.graph.n_vertices()
@@ -69,7 +72,7 @@ enum Match {
 
 fn match_random(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     max_coarsest_vertex_weight: i32,
 ) -> CoarseGraphResult {
     // WHY IS THIS UNUSED
@@ -196,13 +199,13 @@ fn match_random(
     create_coarse_graph(config, graph, coarse_n_vertices, matches, coarsening_map)
 }
 
-fn match_shem(_config: &Config, _graph: WeightedGraph) -> CoarseGraphResult {
+fn match_shem(_config: &Config, _graph: &WeightedGraph) -> CoarseGraphResult {
     panic!();
 }
 
 fn match_two_hop(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     perm: Vec<usize>,
     matches: &mut Vec<Match>,
     mut coarse_n_vertices: usize,
@@ -212,7 +215,7 @@ fn match_two_hop(
     let mut cnv_and_nunmatched = match_two_hop_any(
         config,
         graph,
-        perm,
+        &perm,
         matches,
         coarse_n_vertices,
         n_unmatched,
@@ -225,7 +228,7 @@ fn match_two_hop(
     cnv_and_nunmatched = match_two_hop_all(
         config,
         graph,
-        perm,
+        &perm,
         matches,
         coarse_n_vertices,
         n_unmatched,
@@ -241,7 +244,7 @@ fn match_two_hop(
         cnv_and_nunmatched = match_two_hop_any(
             config,
             graph,
-            perm,
+            &perm,
             matches,
             coarse_n_vertices,
             n_unmatched,
@@ -258,7 +261,7 @@ fn match_two_hop(
         cnv_and_nunmatched = match_two_hop_any(
             config,
             graph,
-            perm,
+            &perm,
             matches,
             coarse_n_vertices,
             n_unmatched,
@@ -275,8 +278,8 @@ fn match_two_hop(
 
 fn match_two_hop_any(
     _config: &Config,
-    graph: WeightedGraph,
-    perm: Vec<usize>,
+    graph: &WeightedGraph,
+    perm: &Vec<usize>,
     matches: &mut Vec<Match>,
     mut coarse_n_vertices: usize,
     mut n_unmatched: usize,
@@ -341,8 +344,8 @@ fn match_two_hop_any(
 
 fn match_two_hop_all(
     _config: &Config,
-    graph: WeightedGraph,
-    perm: Vec<usize>,
+    graph: &WeightedGraph,
+    perm: &Vec<usize>,
     matches: &mut Vec<Match>,
     mut coarse_n_vertices: usize,
     mut n_unmatched: usize,
@@ -421,7 +424,7 @@ fn match_two_hop_all(
 
 fn create_coarse_graph(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     coarse_n_vertices: usize,
     matches: Vec<Match>,
     coarsening_map: Vec<usize>,

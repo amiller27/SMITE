@@ -2,6 +2,7 @@ extern crate rand;
 
 pub enum Mode {
     Identity,
+    #[allow(dead_code)]
     Uninitialized,
 }
 

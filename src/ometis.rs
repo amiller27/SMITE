@@ -1,12 +1,23 @@
 use crate::config::{Config, Index};
 use crate::graph::{compress_graph, Graph, WeightedGraph};
+use std::error::Error;
+use std::fmt;
 
-struct NodeNDResult {
-    permutation: Vec<usize>,
-    inverse_permutation: Vec<usize>,
+pub struct NodeNDResult {
+    pub permutation: Vec<usize>,
+    pub inverse_permutation: Vec<usize>,
 }
 
-enum MetisError {}
+#[derive(Debug)]
+pub enum MetisError {}
+
+impl Error for MetisError {}
+
+impl fmt::Display for MetisError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Oh no, something bad went down")
+    }
+}
 
 enum GraphData {
     Uncompressed,
@@ -132,14 +143,18 @@ fn m_level_nested_dissection<RNG>(
 {
     let n_vertices = graph.graph.n_vertices();
     let boundarized_pyramid = m_level_node_bisection_multiple(config, graph, rng);
-    let coarsest_level = boundarized_pyramid.last().unwrap();
+    let curr_level = boundarized_pyramid.first().unwrap();
 
-    for (i, &vertex) in coarsest_level.boundary_info.boundary_ind.iter().enumerate() {
+    for (i, &vertex) in curr_level.boundary_info.boundary_ind.iter().enumerate() {
         order[labels[vertex]] = first_vertex + n_vertices - i;
     }
 
-    let (left_graph, left_labels, right_graph, right_labels) =
-        split_graph_order(config, graph, coarsest_level.boundary_info, &labels);
+    let (left_graph, left_labels, right_graph, right_labels) = split_graph_order(
+        config,
+        &curr_level.graph,
+        &curr_level.boundary_info,
+        &labels,
+    );
 
     const MMD_SWITCH: usize = 120;
     let left_n_vertices = left_graph.graph.n_vertices();
@@ -236,8 +251,8 @@ where
 
 fn split_graph_order(
     _config: &Config,
-    graph: WeightedGraph,
-    boundary_info: crate::separator_refinement::BoundaryInfo,
+    graph: &WeightedGraph,
+    boundary_info: &crate::separator_refinement::BoundaryInfo,
     labels: &Vec<usize>,
 ) -> (WeightedGraph, Vec<usize>, WeightedGraph, Vec<usize>) {
     let mut split_n_vertices = [0, 0, 0];
@@ -253,7 +268,7 @@ fn split_graph_order(
     /* Go and use bnd_ptr to also mark the boundary nodes in the two partitions */
     let is_boundary = {
         let mut is_boundary = vec![false; graph.graph.n_vertices()];
-        for vertex in boundary_info.boundary_ind {
+        for &vertex in &boundary_info.boundary_ind {
             for &neighbor in graph.graph.neighbors(vertex) {
                 is_boundary[neighbor] = true;
             }
@@ -261,10 +276,27 @@ fn split_graph_order(
         is_boundary
     };
 
-    let mut split_vertex_weights = [vec![], vec![]];
-    let mut split_labels = [vec![], vec![]];
-    let mut split_x_adjacency = [vec![], vec![]];
-    let mut split_adjacency: [Vec<usize>; 2] = [vec![], vec![]];
+    let mut left_graph = WeightedGraph {
+        graph: Graph {
+            x_adjacency: vec![],
+            adjacency_lists: vec![],
+        },
+        vertex_weights: Some(vec![]),
+        edge_weights: Some(vec![]),
+    };
+    let mut right_graph = WeightedGraph {
+        graph: Graph {
+            x_adjacency: vec![],
+            adjacency_lists: vec![],
+        },
+        vertex_weights: Some(vec![]),
+        edge_weights: Some(vec![]),
+    };
+    let mut graphs = [&mut left_graph, &mut right_graph];
+
+    let mut left_labels = vec![];
+    let mut right_labels = vec![];
+    let split_labels = [&mut left_labels, &mut right_labels];
 
     for i in 0..graph.graph.n_vertices() {
         let my_part = boundary_info._where[i];
@@ -272,56 +304,46 @@ fn split_graph_order(
             continue;
         }
 
+        let my_graph = &mut graphs[my_part];
+
         if !is_boundary[i] {
             /* This is an interior vertex */
             for &neighbor in graph.graph.neighbors(i) {
-                split_adjacency[my_part].push(neighbor);
+                my_graph.graph.adjacency_lists.push(neighbor);
             }
         } else {
             for &neighbor in graph.graph.neighbors(i).iter() {
                 if boundary_info._where[neighbor] == my_part {
-                    split_adjacency[my_part].push(neighbor);
+                    my_graph.graph.adjacency_lists.push(neighbor);
                 }
             }
         }
 
-        split_vertex_weights[my_part].push(graph.vertex_weights.as_ref().unwrap()[i]);
+        my_graph
+            .vertex_weights
+            .as_mut()
+            .unwrap()
+            .push(graph.vertex_weights.as_ref().unwrap()[i]);
         split_labels[my_part].push(labels[i]);
-        split_x_adjacency[my_part].push(split_adjacency[my_part].len()); // off by one?
+        my_graph
+            .graph
+            .x_adjacency
+            .push(my_graph.graph.adjacency_lists.len()); // off by one?
     }
 
-    let split_adjacency_weights = [
-        vec![1; split_adjacency[0].len()],
-        vec![1; split_adjacency[1].len()],
-    ];
-
     for my_part in 0..2 {
-        for i in 0..split_adjacency[my_part].len() {
-            split_adjacency[my_part][i] = rename[split_adjacency[my_part][i]];
+        graphs[my_part].edge_weights = Some(vec![1; graphs[my_part].graph.n_edges()]);
+
+        for i in 0..graphs[my_part].graph.n_edges() {
+            graphs[my_part].graph.adjacency_lists[i] =
+                rename[graphs[my_part].graph.adjacency_lists[i]];
         }
     }
 
     // SetupGraph_tvwgt(lgraph)
     // SetupGraph_tvwgt(rgraph)
 
-    let left_graph = WeightedGraph {
-        graph: Graph {
-            x_adjacency: split_x_adjacency[0],
-            adjacency_lists: split_adjacency[0],
-        },
-        vertex_weights: Some(split_vertex_weights[0]),
-        edge_weights: Some(split_adjacency_weights[0]),
-    };
-    let right_graph = WeightedGraph {
-        graph: Graph {
-            x_adjacency: split_x_adjacency[1],
-            adjacency_lists: split_adjacency[1],
-        },
-        vertex_weights: Some(split_vertex_weights[1]),
-        edge_weights: Some(split_adjacency_weights[1]),
-    };
-
-    (left_graph, split_labels[0], right_graph, split_labels[1])
+    (left_graph, left_labels, right_graph, right_labels)
 }
 
 fn mmd_order(

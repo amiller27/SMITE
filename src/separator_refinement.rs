@@ -1,7 +1,7 @@
 use crate::config::{Config, RefinementType};
 use crate::graph::WeightedGraph;
 
-struct NrInfo {
+pub struct NrInfo {
     pub e_degrees: [usize; 2],
 }
 
@@ -14,10 +14,10 @@ pub struct BoundaryInfo {
 }
 
 pub struct GraphPyramidLevel {
-    graph: WeightedGraph,
-    coarsening_map: Vec<usize>,
-    coarser_graph_where: Vec<usize>,
-    total_vertex_weights: i32,
+    pub graph: WeightedGraph,
+    pub coarsening_map: Vec<usize>,
+    pub coarser_graph_where: Vec<usize>,
+    pub total_vertex_weights: i32,
 }
 
 pub struct BoundarizedGraphPyramidLevel {
@@ -42,16 +42,16 @@ pub fn refine_two_way_node(
 
             let boundary_info = project_two_way_node_partition(
                 config,
-                graph_pyramid[graph].graph,
-                graph_pyramid[graph].coarsening_map,
-                graph_pyramid[graph].coarser_graph_where,
+                &graph_pyramid[graph].graph,
+                &graph_pyramid[graph].coarsening_map,
+                &graph_pyramid[graph].coarser_graph_where,
             );
 
             // delete graph->coarser
 
             let boundary_info = crate::fm_separator_refinement::two_way_node_balance(
                 config,
-                graph_pyramid[graph].graph,
+                &graph_pyramid[graph].graph,
                 boundary_info,
                 graph_pyramid[graph].total_vertex_weights,
             );
@@ -60,7 +60,7 @@ pub fn refine_two_way_node(
                 RefinementType::SEP1SIDED => {
                     crate::fm_separator_refinement::two_way_node_refine_one_sided(
                         config,
-                        graph_pyramid[graph].graph,
+                        &graph_pyramid[graph].graph,
                         boundary_info,
                         config.n_iterations,
                     )
@@ -68,7 +68,7 @@ pub fn refine_two_way_node(
                 RefinementType::SEP2SIDED => {
                     crate::fm_separator_refinement::two_way_node_refine_two_sided(
                         config,
-                        graph_pyramid[graph].graph,
+                        &graph_pyramid[graph].graph,
                         boundary_info,
                         config.n_iterations,
                     )
@@ -77,7 +77,7 @@ pub fn refine_two_way_node(
             };
 
             boundarized_pyramid.push(BoundarizedGraphPyramidLevel {
-                graph: graph_pyramid[graph].graph,
+                graph: graph_pyramid[graph].graph.clone(),  // Eek, this is unnecessary
                 boundary_info: boundary_info,
             });
 
@@ -92,9 +92,9 @@ pub fn refine_two_way_node(
 
 fn project_two_way_node_partition(
     config: &Config,
-    graph: WeightedGraph,
-    coarsening_map: Vec<usize>,
-    coarser_graph_where: Vec<usize>,
+    graph: &WeightedGraph,
+    coarsening_map: &Vec<usize>,
+    coarser_graph_where: &Vec<usize>,
 ) -> BoundaryInfo {
     let graph_where = coarsening_map
         .iter()
@@ -102,7 +102,7 @@ fn project_two_way_node_partition(
         .collect();
 
     let (partition_weights, graph_boundary_ind, graph_boundary_ptr, graph_nr_info) =
-        compute_two_way_node_partitioning_params(config, graph, graph_where);
+        compute_two_way_node_partitioning_params(config, graph, &graph_where);
 
     BoundaryInfo {
         _where: graph_where,
@@ -115,8 +115,8 @@ fn project_two_way_node_partition(
 
 pub fn compute_two_way_node_partitioning_params(
     _config: &Config,
-    graph: WeightedGraph,
-    graph_where: Vec<usize>,
+    graph: &WeightedGraph,
+    graph_where: &Vec<usize>,
 ) -> ([i32; 3], Vec<usize>, Vec<Option<usize>>, Vec<NrInfo>) {
     let mut partition_weights = [0, 0, 0];
     let mut graph_boundary_ind = Vec::new();

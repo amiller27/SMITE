@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Node {
     priority: f32,
     value: usize,
@@ -6,13 +6,13 @@ struct Node {
 
 pub struct PriorityQueue {
     n_nodes: usize,
-    max_nodes: usize,
+    // max_nodes: usize,
     heap: Vec<Node>,
     locator: Vec<Option<usize>>,
 }
 
 impl PriorityQueue {
-    fn up_heap(&mut self, i: Option<usize>, priority: f32, value: usize) {
+    fn up_heap(&mut self, mut i: Option<usize>, priority: f32, value: usize) {
         while i.is_some() {
             let j = (i.unwrap() - 1) >> 1;
             if priority < self.heap[j].priority {
@@ -31,9 +31,9 @@ impl PriorityQueue {
         self.locator[value] = i;
     }
 
-    fn down_heap(&mut self, i: Option<usize>, priority: f32, value: usize) {
+    fn down_heap(&mut self, mut i: Option<usize>, priority: f32, value: usize) {
         loop {
-            let j = (i.unwrap() << 1) + 1;
+            let mut j = (i.unwrap() << 1) + 1;
             if !(j < self.n_nodes) {
                 break;
             }
@@ -67,7 +67,7 @@ impl PriorityQueue {
     pub fn create(max_nodes: usize) -> PriorityQueue {
         PriorityQueue {
             n_nodes: 0,
-            max_nodes: max_nodes,
+            // max_nodes: max_nodes,
             heap: vec![
                 Node {
                     priority: 0.0,

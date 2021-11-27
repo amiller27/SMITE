@@ -12,7 +12,7 @@ enum Moved {
 
 pub fn two_way_node_refine_two_sided(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     mut boundary_info: BoundaryInfo,
     n_iterations: i32,
 ) -> (i32, BoundaryInfo) {
@@ -22,7 +22,7 @@ pub fn two_way_node_refine_two_sided(
     let bad_max_partition_weight =
         (mult * (boundary_info.partition_weights.iter().sum::<i32>() as f32)) as usize;
 
-    let mut min_cut_result;
+    let mut min_cut_result = None;
 
     for pass in 0..n_iterations {
         let mut moved = vec![Moved::None; graph.graph.n_vertices()];
@@ -252,9 +252,9 @@ pub fn two_way_node_refine_two_sided(
         }
 
         // roll back computation
-        for (&m_ind, &high_gain) in m_ptr
+        for (m_ind, &high_gain) in m_ptr
             .iter()
-            .zip(swaps.iter())
+            .zip(&swaps)
             .rev()
             .take((swaps.len() as i32 - min_cut_order - 1) as usize)
         {
@@ -283,7 +283,7 @@ pub fn two_way_node_refine_two_sided(
             boundary_info.nr_info[high_gain].e_degrees = e_degrees;
 
             // push nodes out of the separator
-            for k in m_ind {
+            for &k in m_ind {
                 boundary_info._where[k] = other;
                 boundary_info.partition_weights[other] += graph.vertex_weights.as_ref().unwrap()[k];
                 boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[k];
@@ -303,19 +303,19 @@ pub fn two_way_node_refine_two_sided(
             }
         }
 
-        min_cut_result = min_cut;
+        min_cut_result = Some(min_cut);
 
         if min_cut_order == -1 || min_cut >= init_cut {
             break;
         }
     }
 
-    (min_cut_result, boundary_info)
+    (min_cut_result.unwrap(), boundary_info)
 }
 
 pub fn two_way_node_refine_one_sided(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     mut boundary_info: BoundaryInfo,
     n_iterations: i32,
 ) -> (i32, BoundaryInfo) {
@@ -332,7 +332,7 @@ pub fn two_way_node_refine_one_sided(
             (0, 1)
         };
 
-    let mut min_cut_result;
+    let mut min_cut_result = None;
 
     let mut swaps = Vec::new();
 
@@ -495,10 +495,10 @@ pub fn two_way_node_refine_one_sided(
         }
 
         // roll back computation
-        for (&m_ind, &high_gain) in
+        for (m_ind, &high_gain) in
             m_ptr
                 .iter()
-                .zip(swaps.iter())
+                .zip(&swaps)
                 .rev()
                 .take(if let Some(n) = min_cut_order {
                     swaps.len() - n - 1
@@ -528,7 +528,7 @@ pub fn two_way_node_refine_one_sided(
             boundary_info.nr_info[high_gain].e_degrees = e_degrees;
 
             // push nodes out of the separator
-            for k in m_ind {
+            for &k in m_ind {
                 boundary_info._where[k] = other;
                 boundary_info.partition_weights[other] += graph.vertex_weights.as_ref().unwrap()[k];
                 boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[k];
@@ -548,19 +548,19 @@ pub fn two_way_node_refine_one_sided(
             }
         }
 
-        min_cut_result = min_cut;
+        min_cut_result = Some(min_cut);
 
         if pass % 2 == 1 && (min_cut_order == None || min_cut >= init_cut) {
             break;
         }
     }
 
-    (min_cut_result, boundary_info)
+    (min_cut_result.unwrap(), boundary_info)
 }
 
 pub fn two_way_node_balance(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     mut boundary_info: BoundaryInfo,
     total_vertex_weights: i32,
 ) -> BoundaryInfo {

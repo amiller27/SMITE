@@ -1,12 +1,14 @@
 pub type Index = i32;
 pub type Real = f32;
 
+#[allow(dead_code)]
 pub enum ObjectiveType {
     CUT,
     VOLUME,
     NODE,
 }
 
+#[allow(dead_code)]
 pub enum RefinementType {
     FM,
     GREEDY,
@@ -14,6 +16,7 @@ pub enum RefinementType {
     SEP1SIDED,
 }
 
+#[allow(dead_code)]
 pub enum InitialPartitioningType {
     GROW,
     RANDOM,
@@ -22,6 +25,7 @@ pub enum InitialPartitioningType {
     METISRB,
 }
 
+#[allow(dead_code)]
 pub enum CoarseningType {
     RM,
     SHEM,

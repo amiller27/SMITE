@@ -30,7 +30,7 @@ pub struct WhereIdEd {
 
 pub fn compute_two_way_partitioning_params(
     _config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     mut where_id_ed: WhereIdEd,
 ) -> (i32, WhereIdEd, BoundaryInfo) {
     // ncon had better be 1!!!!

@@ -111,9 +111,10 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             n_ordered_nodes += qsize[minimum_degree_node];
             ehead.insert(0, minimum_degree_node);
 
-            if DELTA < 0 {
-                break;
-            }
+            // Impossible if DELTA is a usize
+            // if DELTA < 0 {
+            //     break;
+            // }
         }
 
         // n900
@@ -144,11 +145,6 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
     }
 
     return numbering(graph.n_vertices(), inverse_perm, qsize);
-}
-
-enum DoubleIndex {
-    Neg(usize),
-    Pos(usize),
 }
 
 #[derive(Clone, Copy)]
@@ -259,7 +255,9 @@ fn eliminate(
     while !eliminated_neighbors.is_empty() {
         let link = eliminated_neighbors.pop().unwrap();
         // n400
-        for &node in graph.neighbors(link) {
+        // TODO: Rust correctly complains that this might modify the same data structure, but I
+        // _think_ this is actually safe
+        for node in graph.neighbors_copy(link) {
             if (matches!(marker[node], Marker::Zero)
                 || matches!(marker[node], Marker::Tag(t) if t < tag))
                 && matches!(forward[node], ForwardPtr::Next(_) | ForwardPtr::None)
@@ -272,7 +270,7 @@ fn eliminate(
 
     // for each node in the reachable set, do the following
     let link = minimum_degree_node;
-    for &rnode in graph.neighbors(link) {
+    for rnode in graph.neighbors_copy(link) {
         // rnode is in the degree list structure
         let previous_node = backward[rnode];
         if !matches!(previous_node, BackPtr::None | BackPtr::NegMaxInt) {
@@ -406,7 +404,7 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
 fn update(
     ehead: Vec<usize>,
     graph: &MutableGraph,
-    DELTA: usize,
+    delta: usize,
     mut minimum_degree: usize,
     mut head: Vec<ForwardPtr>,
     mut forward: Vec<ForwardPtr>,
@@ -423,7 +421,7 @@ fn update(
     Vec<Marker>,
     usize,
 ) {
-    let minimum_degree_0 = minimum_degree + DELTA;
+    let minimum_degree_0 = minimum_degree + delta;
     // n100
     for element in ehead {
         // for each of the newly formed elements, do the following.  reset tag value if necessary

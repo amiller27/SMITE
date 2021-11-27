@@ -1,17 +1,18 @@
 use crate::config::{Index, Real};
 
+#[derive(Clone)]
 pub struct Graph {
     pub x_adjacency: Vec<usize>,
     pub adjacency_lists: Vec<usize>,
 }
 
 impl Graph {
-    fn init(n_vertices: usize, n_edges: usize) -> Graph {
-        Graph {
-            x_adjacency: vec![0; n_vertices + 1],
-            adjacency_lists: vec![0; n_edges],
-        }
-    }
+    //fn init(n_vertices: usize, n_edges: usize) -> Graph {
+    //    Graph {
+    //        x_adjacency: vec![0; n_vertices + 1],
+    //        adjacency_lists: vec![0; n_edges],
+    //    }
+    //}
 
     pub fn degree(&self, vertex: usize) -> usize {
         self.x_adjacency[vertex + 1] - self.x_adjacency[vertex]
@@ -30,6 +31,7 @@ impl Graph {
     }
 }
 
+#[derive(Clone)]
 pub struct WeightedGraph {
     pub graph: Graph,
     pub vertex_weights: Option<Vec<Index>>,
@@ -77,6 +79,10 @@ impl MutableGraph {
 
     pub fn neighbors(&self, vertex: usize) -> &[usize] {
         &self.adjacency[vertex]
+    }
+
+    pub fn neighbors_copy(&self, vertex: usize) -> Vec<usize> {
+        self.adjacency[vertex].clone()
     }
 
     pub fn n_vertices(&self) -> usize {

@@ -17,7 +17,7 @@ mod fm;
 mod separator;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let graph = crate::io::read_graph("/home/aaron/metis-cpp/metis/graphs/test.mgraph")?;
-    crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rand::thread_rng());
+    let graph = crate::io::read_graph("/home/aaron/metis-cpp/METIS/graphs/test.mgraph")?;
+    crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rand::thread_rng())?;
     Ok(())
 }

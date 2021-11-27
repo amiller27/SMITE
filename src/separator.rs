@@ -6,7 +6,7 @@ pub fn construct_separator(
     config: &Config,
     graph: &WeightedGraph,
     boundary_info: BoundaryInfo,
-    where_id_ed: WhereIdEd,
+    where_id_ed: &WhereIdEd,
 ) -> (i32, BoundaryInfo, Vec<usize>) {
     let mut _where = where_id_ed._where.clone();
 
@@ -22,12 +22,12 @@ pub fn construct_separator(
 
     let (partition_weights, graph_boundary_ind, graph_boundary_ptr, graph_nr_info) =
         crate::separator_refinement::compute_two_way_node_partitioning_params(
-            config, *graph, _where,
+            config, graph, &_where,
         );
 
     let (_min_cut, boundary_info) = crate::fm_separator_refinement::two_way_node_refine_two_sided(
         config,
-        *graph,
+        graph,
         crate::separator_refinement::BoundaryInfo {
             _where: _where,
             boundary_ind: graph_boundary_ind,
@@ -40,7 +40,7 @@ pub fn construct_separator(
 
     let (min_cut, boundary_info) = crate::fm_separator_refinement::two_way_node_refine_one_sided(
         config,
-        *graph,
+        graph,
         boundary_info,
         4,
     );
@@ -52,6 +52,6 @@ pub fn construct_separator(
             boundary_ind: boundary_info.boundary_ind,
             boundary_ptr: boundary_info.boundary_ptr,
         },
-        _where,
+        boundary_info._where, // Previously had _where here?
     )
 }

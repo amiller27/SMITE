@@ -33,7 +33,7 @@ where
                 } else {
                     grow_bisection(
                         config,
-                        coarsest_level.graph,
+                        &coarsest_level.graph,
                         n_t_partition_weights,
                         n_i_parts,
                         coarsest_level.total_vertex_weights,
@@ -42,10 +42,10 @@ where
                     )
                 };
 
-            let (_min_cut, where_id_ed, boundary_info) =
+            let (_min_cut, mut where_id_ed, boundary_info) =
                 crate::refinement::compute_two_way_partitioning_params(
                     config,
-                    coarsest_level.graph,
+                    &coarsest_level.graph,
                     where_id_ed,
                 );
 
@@ -53,7 +53,7 @@ where
                 config,
                 &coarsest_level.graph,
                 boundary_info,
-                where_id_ed,
+                &where_id_ed,
             );
             where_id_ed._where = _where;
 
@@ -64,8 +64,8 @@ where
     };
 
     vec![GraphPyramidLevel {
-        graph: coarsest_level.graph,
-        coarsening_map: coarsest_level.coarsening_map,
+        graph: coarsest_level.graph.clone(), // Eek, this should be unnecessary
+        coarsening_map: coarsest_level.coarsening_map.clone(), // Eek
         coarser_graph_where: where_id_ed._where,
         total_vertex_weights: coarsest_level.total_vertex_weights,
     }]
@@ -88,7 +88,7 @@ fn setup_two_way_balance_multipliers(
 
 fn grow_bisection<RNG>(
     config: &Config,
-    graph: WeightedGraph,
+    graph: &WeightedGraph,
     n_t_partition_weights: [f32; 2],
     n_i_parts: usize,
     total_vertex_weights: i32,
@@ -201,14 +201,17 @@ where
         }
 
         // do some partition refinement
-        let (min_cut, where_id_ed, boundary_info) =
+        let partitioning_params =
             crate::refinement::compute_two_way_partitioning_params(config, graph, where_id_ed);
+        let min_cut = partitioning_params.0;
+        where_id_ed = partitioning_params.1;
+        boundary_info = partitioning_params.2;
 
         // does nothing? at least right now...
         crate::balance::balance_two_way(
             config,
             boundary_info.partition_weights,
-            balance_multipliers,
+            &balance_multipliers,
         );
 
         let new_boundary = crate::fm::two_way_refine(
@@ -221,13 +224,13 @@ where
             where_id_ed,
             rng,
         );
-        min_cut = new_boundary.0;
-        // boundary_info = new_boundary.1;
+        let min_cut = new_boundary.0;
+        boundary_info = new_boundary.1;
         where_id_ed = new_boundary.2;
 
         if i_n_bfs == 0 || best_cut > min_cut {
             best_cut = min_cut;
-            best_where = where_id_ed._where;
+            best_where = where_id_ed._where.clone();
             if best_cut == 0 {
                 break;
             }

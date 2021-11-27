@@ -1,8 +1,8 @@
 pub fn compute_load_imbalance_diff(
     partition_weights: [i32; 3],
     n_parts: usize,
-    pijbm: Vec<f32>,
-    ub_factors: Vec<f32>,
+    pijbm: &Vec<f32>,
+    ub_factors: &Vec<f32>,
 ) -> f32 {
     let mut max = -1.0;
 
