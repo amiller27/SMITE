@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
+#[allow(dead_code)]
 pub fn read_graph<P>(filename: P) -> Result<WeightedGraph, Box<dyn std::error::Error>>
 where
     P: AsRef<Path>,

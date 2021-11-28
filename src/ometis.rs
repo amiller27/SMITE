@@ -71,6 +71,13 @@ where
         ),
     };
 
+    println!(
+        "Compressed: {}, {}: {:?}",
+        compressed_graph.graph.n_vertices(),
+        compressed_graph.graph.n_edges(),
+        compressed_graph.graph.adjacency_lists
+    );
+
     let compressed_n_vertices = compressed_graph.graph.n_vertices();
     let mut inverse_permutation = vec![0; compressed_graph.graph.n_vertices()];
     if config.connected_components_order {
