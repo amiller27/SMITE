@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::graph::WeightedGraph;
 
+#[derive(Debug)]
 pub struct BoundaryInfo {
     pub partition_weights: [i32; 3],
     pub boundary_ind: Vec<usize>,
@@ -9,11 +10,16 @@ pub struct BoundaryInfo {
 
 impl BoundaryInfo {
     pub fn delete(&mut self, i: usize) {
-        let index_to_update = self.boundary_ptr[i];
-        let value_to_move = self.boundary_ind.pop();
-        self.boundary_ind[index_to_update.unwrap()] = value_to_move.unwrap();
-        self.boundary_ptr[value_to_move.unwrap()] = index_to_update;
-        self.boundary_ptr[i] = None;
+        let index_to_update = self.boundary_ptr[i].unwrap();
+        if index_to_update + 1 == self.boundary_ind.len() {
+            self.boundary_ind.pop();
+            self.boundary_ptr[i] = None;
+        } else {
+            let value_to_move = self.boundary_ind.pop();
+            self.boundary_ind[index_to_update] = value_to_move.unwrap();
+            self.boundary_ptr[value_to_move.unwrap()] = Some(index_to_update);
+            self.boundary_ptr[i] = None;
+        }
     }
 
     pub fn insert(&mut self, i: usize) {
@@ -22,6 +28,7 @@ impl BoundaryInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct WhereIdEd {
     pub _where: Vec<usize>,
     pub id: Vec<i32>,

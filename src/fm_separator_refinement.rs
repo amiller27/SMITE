@@ -1,21 +1,40 @@
 use crate::config::Config;
 use crate::graph::WeightedGraph;
 use crate::priority_queue::PriorityQueue;
+use crate::random::RangeRng;
 use crate::separator_refinement::BoundaryInfo;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Moved {
     None,
     Some(usize),
     Neg(usize),
 }
 
-pub fn two_way_node_refine_two_sided(
+const DEBUG_TWO_SIDED: bool = false;
+
+macro_rules! debug_two {
+    ($($x: expr),*) => {
+        if DEBUG_TWO_SIDED {
+            println!($($x,)*);
+        }
+    };
+}
+
+pub fn two_way_node_refine_two_sided<RNG>(
     config: &Config,
     graph: &WeightedGraph,
     mut boundary_info: BoundaryInfo,
     n_iterations: i32,
-) -> (i32, BoundaryInfo) {
+    rng: &mut RNG,
+) -> (i32, BoundaryInfo)
+where
+    RNG: RangeRng,
+{
+    debug_two!("ENTERING TWO_WAY_NODE_REFINE_TWO_SIDED");
+    debug_two!("{:?}", graph);
+    debug_two!("{:?}", boundary_info);
+    debug_two!("{}", n_iterations);
     let mut swaps = Vec::new();
 
     let mult = 0.5 * config.ub_factors[0];
@@ -39,24 +58,22 @@ pub fn two_way_node_refine_two_sided(
 
         // use the swaps array in place of the traditional perm array to save memory
         // NOTE(aaron): well fuck that
-        let perm = crate::random::permutation(
-            n_boundary,
-            n_boundary,
-            crate::random::Mode::Identity,
-            &mut rand::thread_rng(),
-        );
+        let perm =
+            crate::random::permutation(n_boundary, n_boundary, crate::random::Mode::Identity, rng);
 
         for ii in 0..n_boundary {
             let i = boundary_info.boundary_ind[perm[ii]];
             queues[0].insert(
                 i,
                 (graph.vertex_weights.as_ref().unwrap()[i]
-                    - boundary_info.nr_info[i].e_degrees[1] as i32) as f32,
+                    - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[1] as i32)
+                    as f32,
             );
             queues[1].insert(
                 i,
                 (graph.vertex_weights.as_ref().unwrap()[i]
-                    - boundary_info.nr_info[i].e_degrees[0] as i32) as f32,
+                    - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[0] as i32)
+                    as f32,
             );
         }
 
@@ -78,6 +95,21 @@ pub fn two_way_node_refine_two_sided(
         //};
         let mut to;
         for n_swaps in 0..graph.graph.n_vertices() {
+            for _i in 0..5 {
+                debug_two!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            }
+            debug_two!("N_SWAPS: {}", n_swaps);
+
+            debug_two!("{:?}", boundary_info);
+            debug_two!("swaps: {:?}", swaps);
+            debug_two!("min_cut_result: {:?}", min_cut_result);
+            debug_two!("moved: {:?}", moved);
+            debug_two!("queues: {:?}", queues);
+            debug_two!("min_cut_order: {}", min_cut_order);
+            debug_two!("min_cut: {}", min_cut);
+            debug_two!("m_ptr: {:?}", m_ptr);
+            debug_two!("min_diff: {}", min_diff);
+
             let mut m_ind = Vec::new();
 
             let maybe_u = [queues[0].peek(), queues[1].peek()];
@@ -87,9 +119,9 @@ pub fn two_way_node_refine_two_sided(
 
                 let g = [
                     graph.vertex_weights.as_ref().unwrap()[u[0]]
-                        - boundary_info.nr_info[u[0]].e_degrees[1] as i32,
+                        - boundary_info.nr_info[u[0]].as_ref().unwrap().e_degrees[1] as i32,
                     graph.vertex_weights.as_ref().unwrap()[u[1]]
-                        - boundary_info.nr_info[u[1]].e_degrees[0] as i32,
+                        - boundary_info.nr_info[u[1]].as_ref().unwrap().e_degrees[0] as i32,
                 ];
 
                 to = if g[0] > g[1] {
@@ -145,12 +177,12 @@ pub fn two_way_node_refine_two_sided(
             }
 
             boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[high_gain]
-                - boundary_info.nr_info[high_gain].e_degrees[other] as i32;
+                - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
 
             let new_diff = (boundary_info.partition_weights[to]
                 + graph.vertex_weights.as_ref().unwrap()[high_gain]
                 - (boundary_info.partition_weights[other]
-                    - boundary_info.nr_info[high_gain].e_degrees[other] as i32))
+                    - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32))
                 .abs();
 
             if boundary_info.partition_weights[2] < min_cut
@@ -165,20 +197,17 @@ pub fn two_way_node_refine_two_sided(
             {
                 boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()
                     [high_gain]
-                    - boundary_info.nr_info[high_gain].e_degrees[other] as i32;
+                    - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
                 break; // no further improvement, break out
             }
 
-            let index_to_update = boundary_info.boundary_ptr[high_gain];
-            let value_to_move = boundary_info.boundary_ind.pop();
-            boundary_info.boundary_ind[index_to_update.unwrap()] = value_to_move.unwrap();
-            boundary_info.boundary_ptr[value_to_move.unwrap()] = index_to_update;
-            boundary_info.boundary_ptr[high_gain] = None;
+            boundary_info.delete(high_gain);
 
             boundary_info.partition_weights[to] +=
                 graph.vertex_weights.as_ref().unwrap()[high_gain];
             boundary_info._where[high_gain] = to;
             moved[high_gain] = Moved::Some(n_swaps);
+            debug_two!("SETTING MOVED {} = {:?}", high_gain, Moved::Some(n_swaps));
             swaps.push(high_gain);
 
             // update the degrees of the affected nodes
@@ -186,10 +215,17 @@ pub fn two_way_node_refine_two_sided(
                 if boundary_info._where[k] == 2 {
                     // for the in-separator vertices modify their edegree[to]
                     let old_gain = graph.vertex_weights.as_ref().unwrap()[k]
-                        - boundary_info.nr_info[k].e_degrees[to] as i32;
-                    boundary_info.nr_info[k].e_degrees[to] +=
+                        - boundary_info.nr_info[k].as_ref().unwrap().e_degrees[to] as i32;
+                    boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] +=
                         graph.vertex_weights.as_ref().unwrap()[high_gain] as usize; // eek
 
+                    debug_two!(
+                        "----------- Branch 1, Moved {:?}, other {}, k {}, new {}",
+                        moved[k],
+                        other,
+                        k,
+                        (old_gain - graph.vertex_weights.as_ref().unwrap()[high_gain]) as f32
+                    );
                     match moved[k] {
                         Moved::None => queues[other].update(
                             k,
@@ -211,22 +247,33 @@ pub fn two_way_node_refine_two_sided(
                     boundary_info.partition_weights[other] -=
                         graph.vertex_weights.as_ref().unwrap()[k];
 
+                    debug_two!("--------- Branch 2");
+                    debug_two!("{:?}", boundary_info._where);
                     let mut e_degrees = [0, 0];
                     for &kk in graph.graph.neighbors(k) {
                         if boundary_info._where[kk] != 2 {
                             e_degrees[boundary_info._where[kk]] +=
                                 graph.vertex_weights.as_ref().unwrap()[kk] as usize;
                         } else {
-                            boundary_info.nr_info[kk].e_degrees[other] -=
-                                graph.vertex_weights.as_ref().unwrap()[k] as usize;
                             let old_gain = graph.vertex_weights.as_ref().unwrap()[kk]
-                                - boundary_info.nr_info[kk].e_degrees[other] as i32;
-                            match moved[k] {
+                                - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
+                                    as i32;
+                            boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] -=
+                                graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                            debug_two!(
+                                "Moved {:?}, to {}, k {}, kk {}, new {}",
+                                moved[kk],
+                                to,
+                                k,
+                                kk,
+                                (old_gain + graph.vertex_weights.as_ref().unwrap()[k]) as f32
+                            );
+                            match moved[kk] {
                                 Moved::None => queues[to].update(
                                     kk,
                                     (old_gain + graph.vertex_weights.as_ref().unwrap()[k]) as f32,
                                 ),
-                                Moved::Neg(i) if i == other => queues[to].update(
+                                Moved::Neg(i) if i == to => queues[to].update(
                                     kk,
                                     (old_gain + graph.vertex_weights.as_ref().unwrap()[k]) as f32,
                                 ),
@@ -234,7 +281,10 @@ pub fn two_way_node_refine_two_sided(
                             }
                         }
                     }
-                    boundary_info.nr_info[k].e_degrees = e_degrees;
+                    debug_two!("Set nrinfo {} to {:?}", k, e_degrees);
+                    boundary_info.nr_info[k] = Some(crate::separator_refinement::NrInfo {
+                        e_degrees: e_degrees,
+                    });
 
                     // insert the new vertex into the priority queue.  Only one side!
                     if matches!(moved[k], Moved::None) {
@@ -258,6 +308,8 @@ pub fn two_way_node_refine_two_sided(
             .rev()
             .take((swaps.len() as i32 - min_cut_order - 1) as usize)
         {
+            debug_two!("Rolling {}, {:?}", high_gain, m_ind);
+            debug_two!("where: {:?}", boundary_info._where);
             let to = boundary_info._where[high_gain];
             let other = if to == 0 { 1 } else { 0 };
 
@@ -273,14 +325,16 @@ pub fn two_way_node_refine_two_sided(
             let mut e_degrees = [0, 0];
             for &k in graph.graph.neighbors(high_gain) {
                 if boundary_info._where[k] == 2 {
-                    boundary_info.nr_info[k].e_degrees[to] -=
+                    boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] -=
                         graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
                 } else {
                     e_degrees[boundary_info._where[k]] +=
                         graph.vertex_weights.as_ref().unwrap()[k] as usize;
                 }
             }
-            boundary_info.nr_info[high_gain].e_degrees = e_degrees;
+            boundary_info.nr_info[high_gain] = Some(crate::separator_refinement::NrInfo {
+                e_degrees: e_degrees,
+            });
 
             // push nodes out of the separator
             for &k in m_ind {
@@ -288,15 +342,11 @@ pub fn two_way_node_refine_two_sided(
                 boundary_info.partition_weights[other] += graph.vertex_weights.as_ref().unwrap()[k];
                 boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[k];
 
-                let index_to_update = boundary_info.boundary_ptr[k];
-                let value_to_move = boundary_info.boundary_ind.pop();
-                boundary_info.boundary_ind[index_to_update.unwrap()] = value_to_move.unwrap();
-                boundary_info.boundary_ptr[value_to_move.unwrap()] = index_to_update;
-                boundary_info.boundary_ptr[k] = None;
+                boundary_info.delete(k);
 
                 for &kk in graph.graph.neighbors(k) {
                     if boundary_info._where[kk] == 2 {
-                        boundary_info.nr_info[kk].e_degrees[other] +=
+                        boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] +=
                             graph.vertex_weights.as_ref().unwrap()[k] as usize;
                     }
                 }
@@ -310,15 +360,24 @@ pub fn two_way_node_refine_two_sided(
         }
     }
 
+    debug_two!("Returning {:?}", boundary_info);
     (min_cut_result.unwrap(), boundary_info)
 }
 
-pub fn two_way_node_refine_one_sided(
+pub fn two_way_node_refine_one_sided<RNG>(
     config: &Config,
     graph: &WeightedGraph,
     mut boundary_info: BoundaryInfo,
     n_iterations: i32,
-) -> (i32, BoundaryInfo) {
+    rng: &mut RNG,
+) -> (i32, BoundaryInfo)
+where
+    RNG: RangeRng,
+{
+    println!("ENTERING TWO_WAY_NODE_REFINE_ONE_SIDED");
+    println!("{:?}", graph);
+    println!("{:?}", boundary_info);
+    println!("{}", n_iterations);
     let mut queue = PriorityQueue::create(graph.graph.n_vertices());
 
     let mult = 0.5 * config.ub_factors[0];
@@ -337,7 +396,7 @@ pub fn two_way_node_refine_one_sided(
     let mut swaps = Vec::new();
 
     for pass in 0..2 * n_iterations {
-        // the 2 * niter is fo the two sides
+        // the 2 * niter is for the two sides
         std::mem::swap(&mut to, &mut other);
 
         queue.reset();
@@ -349,19 +408,16 @@ pub fn two_way_node_refine_one_sided(
 
         // use the swaps array in place of the traditional perm array to save memory
         // NOTE(aaron): well fuck that
-        let perm = crate::random::permutation(
-            n_boundary,
-            n_boundary,
-            crate::random::Mode::Identity,
-            &mut rand::thread_rng(),
-        );
+        let perm =
+            crate::random::permutation(n_boundary, n_boundary, crate::random::Mode::Identity, rng);
 
         for ii in 0..n_boundary {
             let i = boundary_info.boundary_ind[perm[ii]];
             queue.insert(
                 i,
                 (graph.vertex_weights.as_ref().unwrap()[i]
-                    - boundary_info.nr_info[i].e_degrees[other] as i32) as f32,
+                    - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[other] as i32)
+                    as f32,
             );
         }
 
@@ -407,12 +463,12 @@ pub fn two_way_node_refine_one_sided(
             }
 
             boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[high_gain]
-                - boundary_info.nr_info[high_gain].e_degrees[other] as i32;
+                - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
 
             let new_diff = (boundary_info.partition_weights[to]
                 + graph.vertex_weights.as_ref().unwrap()[high_gain]
                 - (boundary_info.partition_weights[other]
-                    - boundary_info.nr_info[high_gain].e_degrees[other] as i32))
+                    - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32))
                 .abs();
 
             if boundary_info.partition_weights[2] < min_cut
@@ -427,15 +483,11 @@ pub fn two_way_node_refine_one_sided(
             {
                 boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()
                     [high_gain]
-                    - boundary_info.nr_info[high_gain].e_degrees[other] as i32;
+                    - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
                 break; // no further improvement, break out
             }
 
-            let index_to_update = boundary_info.boundary_ptr[high_gain];
-            let value_to_move = boundary_info.boundary_ind.pop();
-            boundary_info.boundary_ind[index_to_update.unwrap()] = value_to_move.unwrap();
-            boundary_info.boundary_ptr[value_to_move.unwrap()] = index_to_update;
-            boundary_info.boundary_ptr[high_gain] = None;
+            boundary_info.delete(high_gain);
 
             boundary_info.partition_weights[to] +=
                 graph.vertex_weights.as_ref().unwrap()[high_gain];
@@ -443,12 +495,10 @@ pub fn two_way_node_refine_one_sided(
             swaps.push(high_gain);
 
             // update the degrees of the affected nodes
-            for k_ptr in graph.graph.neighbors(high_gain) {
-                let k = *k_ptr;
-
+            for &k in graph.graph.neighbors(high_gain) {
                 if boundary_info._where[k] == 2 {
                     // for the in-separator vertices modify their edegree[to]
-                    boundary_info.nr_info[k].e_degrees[to] +=
+                    boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] +=
                         graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
                 } else if boundary_info._where[k] == other {
                     // this vertex is pulled into the separator
@@ -462,13 +512,12 @@ pub fn two_way_node_refine_one_sided(
                         graph.vertex_weights.as_ref().unwrap()[k];
 
                     let mut e_degrees = [0, 0];
-                    for kk_ptr in graph.graph.neighbors(k) {
-                        let kk = *kk_ptr;
+                    for &kk in graph.graph.neighbors(k) {
                         if boundary_info._where[kk] != 2 {
                             e_degrees[boundary_info._where[kk]] +=
                                 graph.vertex_weights.as_ref().unwrap()[kk] as usize;
                         } else {
-                            boundary_info.nr_info[kk].e_degrees[other] -=
+                            boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] -=
                                 graph.vertex_weights.as_ref().unwrap()[k] as usize;
                         }
 
@@ -476,11 +525,13 @@ pub fn two_way_node_refine_one_sided(
                         queue.update(
                             kk,
                             (graph.vertex_weights.as_ref().unwrap()[kk]
-                                - boundary_info.nr_info[kk].e_degrees[other] as i32)
-                                as f32,
+                                - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
+                                    as i32) as f32,
                         );
                     }
-                    boundary_info.nr_info[k].e_degrees = e_degrees;
+                    boundary_info.nr_info[k] = Some(crate::separator_refinement::NrInfo {
+                        e_degrees: e_degrees,
+                    });
 
                     // insert the new vertex into the priority queue.  Safe due to one-sided moves
                     queue.insert(
@@ -518,14 +569,16 @@ pub fn two_way_node_refine_one_sided(
             let mut e_degrees = [0, 0];
             for &k in graph.graph.neighbors(high_gain) {
                 if boundary_info._where[k] == 2 {
-                    boundary_info.nr_info[k].e_degrees[to] -=
+                    boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] -=
                         graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
                 } else {
                     e_degrees[boundary_info._where[k]] +=
                         graph.vertex_weights.as_ref().unwrap()[k] as usize;
                 }
             }
-            boundary_info.nr_info[high_gain].e_degrees = e_degrees;
+            boundary_info.nr_info[high_gain] = Some(crate::separator_refinement::NrInfo {
+                e_degrees: e_degrees,
+            });
 
             // push nodes out of the separator
             for &k in m_ind {
@@ -533,15 +586,11 @@ pub fn two_way_node_refine_one_sided(
                 boundary_info.partition_weights[other] += graph.vertex_weights.as_ref().unwrap()[k];
                 boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[k];
 
-                let index_to_update = boundary_info.boundary_ptr[k];
-                let value_to_move = boundary_info.boundary_ind.pop();
-                boundary_info.boundary_ind[index_to_update.unwrap()] = value_to_move.unwrap();
-                boundary_info.boundary_ptr[value_to_move.unwrap()] = index_to_update;
-                boundary_info.boundary_ptr[k] = None;
+                boundary_info.delete(k);
 
                 for &kk in graph.graph.neighbors(k) {
                     if boundary_info._where[kk] == 2 {
-                        boundary_info.nr_info[kk].e_degrees[other] +=
+                        boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] +=
                             graph.vertex_weights.as_ref().unwrap()[k] as usize;
                     }
                 }
@@ -608,7 +657,8 @@ pub fn two_way_node_balance(
         queue.insert(
             i,
             (graph.vertex_weights.as_ref().unwrap()[i]
-                - boundary_info.nr_info[i].e_degrees[other] as i32) as f32,
+                - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[other] as i32)
+                as f32,
         );
     }
 
@@ -627,7 +677,7 @@ pub fn two_way_node_balance(
         moved[high_gain] = true;
 
         let gain = graph.vertex_weights.as_ref().unwrap()[high_gain]
-            - boundary_info.nr_info[high_gain].e_degrees[other] as i32;
+            - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
 
         let bad_max_partition_weight = (mult
             * (boundary_info.partition_weights[0] + boundary_info.partition_weights[1]) as f32)
@@ -652,11 +702,7 @@ pub fn two_way_node_balance(
 
         boundary_info.partition_weights[2] -= gain;
 
-        let index_to_update = boundary_info.boundary_ptr[high_gain];
-        let value_to_move = boundary_info.boundary_ind.pop();
-        boundary_info.boundary_ind[index_to_update.unwrap()] = value_to_move.unwrap();
-        boundary_info.boundary_ptr[value_to_move.unwrap()] = index_to_update;
-        boundary_info.boundary_ptr[high_gain] = None;
+        boundary_info.delete(high_gain);
 
         boundary_info.partition_weights[to] += graph.vertex_weights.as_ref().unwrap()[high_gain];
         boundary_info._where[high_gain] = to;
@@ -665,7 +711,7 @@ pub fn two_way_node_balance(
         for k in graph.graph.neighbors(high_gain) {
             if boundary_info._where[*k] == 2 {
                 // for the in-separator vertices modify their edegree[to]
-                boundary_info.nr_info[*k].e_degrees[to] +=
+                boundary_info.nr_info[*k].as_mut().unwrap().e_degrees[to] +=
                     graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
             } else if boundary_info._where[*k] == other {
                 // this vertex is pulled into the separator
@@ -683,9 +729,9 @@ pub fn two_way_node_balance(
                             graph.vertex_weights.as_ref().unwrap()[*kk] as usize;
                     } else {
                         let old_gain = graph.vertex_weights.as_ref().unwrap()[*kk]
-                            - boundary_info.nr_info[*kk].e_degrees[other] as i32;
+                            - boundary_info.nr_info[*kk].as_ref().unwrap().e_degrees[other] as i32;
 
-                        boundary_info.nr_info[*kk].e_degrees[other] -=
+                        boundary_info.nr_info[*kk].as_mut().unwrap().e_degrees[other] -=
                             graph.vertex_weights.as_ref().unwrap()[*k] as usize;
 
                         if !moved[*kk] {
@@ -696,7 +742,7 @@ pub fn two_way_node_balance(
                         }
                     }
                 }
-                boundary_info.nr_info[*k].e_degrees = e_degrees;
+                boundary_info.nr_info[*k].as_mut().unwrap().e_degrees = e_degrees;
 
                 // insert the new vertex into the priority queue
                 queue.insert(

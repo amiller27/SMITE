@@ -2,6 +2,7 @@ extern crate rand;
 
 use crate::config::{Config, InitialPartitioningType};
 use crate::graph::WeightedGraph;
+use crate::random::RangeRng;
 use crate::separator_refinement::GraphPyramidLevel;
 
 pub fn initialize_separator<RNG>(
@@ -11,7 +12,7 @@ pub fn initialize_separator<RNG>(
     rng: &mut RNG,
 ) -> Vec<GraphPyramidLevel>
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     let n_t_partition_weights = [0.5, 0.5];
 
@@ -54,6 +55,7 @@ where
                 &coarsest_level.graph,
                 boundary_info,
                 &where_id_ed,
+                rng,
             );
             where_id_ed._where = _where;
 
@@ -100,7 +102,7 @@ fn grow_bisection<RNG>(
     crate::refinement::BoundaryInfo,
 )
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     // ncon is 1
     let mut boundary_info = crate::refinement::BoundaryInfo {
@@ -125,6 +127,11 @@ where
     let one_min_partition_weight = ((1.0 / config.ub_factors[0])
         * total_vertex_weights as f32
         * n_t_partition_weights[1]) as i32;
+
+    println!(
+        "onemaxpwgt: {}, oneminpwgt: {}",
+        one_max_partition_weight, one_min_partition_weight
+    );
 
     for i_n_bfs in 0..n_i_parts {
         where_id_ed._where = vec![1; graph.graph.n_vertices()];
@@ -216,7 +223,7 @@ where
 
         let new_boundary = crate::fm::two_way_refine(
             config,
-            &graph,
+            graph,
             total_vertex_weights,
             n_t_partition_weights,
             min_cut,

@@ -31,6 +31,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}: {:?}", node, graph.graph.neighbors(node));
     }
 
-    crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rand::thread_rng())?;
+    let mut rng =
+        crate::random::MockRng::from_trace(format!("/home/aaron/rng_traces/{}.txt", mat_name))?;
+
+    crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rng)?;
     Ok(())
 }

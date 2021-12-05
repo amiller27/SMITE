@@ -1,7 +1,19 @@
 use crate::config::Config;
 use crate::graph::WeightedGraph;
 use crate::priority_queue::PriorityQueue;
+use crate::random::RangeRng;
 use crate::refinement::{BoundaryInfo, WhereIdEd};
+
+const DEBUG_FM: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_FM {
+            println!($($x,)*);
+        }
+    };
+}
+
 
 pub fn two_way_refine<RNG>(
     config: &Config,
@@ -14,7 +26,7 @@ pub fn two_way_refine<RNG>(
     rng: &mut RNG,
 ) -> (i32, BoundaryInfo, WhereIdEd)
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     // ncon is 1
     two_way_cut_refine(
@@ -40,8 +52,15 @@ fn two_way_cut_refine<RNG>(
     rng: &mut RNG,
 ) -> (i32, BoundaryInfo, WhereIdEd)
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
+    debug!("ENTER TWO_WAY_CUT_REFINE");
+    debug!("graph:\n{:?}", graph);
+    debug!("tvwgt: {}", total_vertex_weights);
+    debug!("n_t_partition_weights: {:?}", n_t_partition_weights);
+    debug!("min_cut: {}", min_cut);
+    debug!("boundary_info: {:?}", boundary_info);
+    debug!("where_id_ed: {:?}", where_id_ed);
     let total_partition_weights = [
         (total_vertex_weights as f32 * n_t_partition_weights[0]) as i32,
         total_vertex_weights - (total_vertex_weights as f32 * n_t_partition_weights[0]) as i32,
@@ -87,6 +106,9 @@ where
                     - where_id_ed.id[boundary_info.boundary_ind[i]]) as f32,
             );
         }
+
+        debug!("perm: {:?}", perm);
+        debug!("queues: {:?}", queues);
 
         let mut swaps = Vec::new();
         for n_swaps in 0..graph.graph.n_vertices() {
@@ -193,6 +215,7 @@ where
 
         for i_swap in (((min_cut_order + 1) as usize)..swaps.len()).rev() {
             let high_gain = swaps[i_swap];
+            debug!("Unrolling high_gain {}", high_gain);
 
             where_id_ed._where[high_gain] = if where_id_ed._where[high_gain] == 0 {
                 1

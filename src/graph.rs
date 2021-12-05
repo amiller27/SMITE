@@ -1,6 +1,6 @@
 use crate::config::{Index, Real};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Graph {
     pub x_adjacency: Vec<usize>,
     pub adjacency_lists: Vec<usize>,
@@ -31,7 +31,7 @@ impl Graph {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WeightedGraph {
     pub graph: Graph,
     pub vertex_weights: Option<Vec<Index>>,
@@ -94,14 +94,26 @@ impl MutableGraph {
     }
 }
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Clone)]
+#[derive(PartialOrd, Eq, Debug, Clone)]
 pub struct KeyAndValue {
     pub key: usize,
     pub value: usize,
 }
 
+impl Ord for KeyAndValue {
+    fn cmp(&self, other: &KeyAndValue) -> std::cmp::Ordering {
+        return self.key.cmp(&other.key);
+    }
+}
+
+impl PartialEq for KeyAndValue {
+    fn eq(&self, other: &KeyAndValue)  -> bool {
+        return self.key == other.key;
+    }
+}
+
 pub fn sort(mut v: Vec<KeyAndValue>) -> Vec<KeyAndValue> {
-    v.sort();
+    v.sort_unstable();
     v
 }
 
@@ -117,7 +129,9 @@ pub fn compress_graph(
         })
         .collect::<Vec<KeyAndValue>>();
 
+    println!("Keys unsorted: {:?}", keys_unsorted);
     let keys = sort(keys_unsorted);
+    println!("Keys: {:?}", keys);
 
     let mut mark = vec![Option::<usize>::None; graph.n_vertices()];
 
@@ -139,8 +153,8 @@ pub fn compress_graph(
 
         mark[vertex] = Some(i);
 
-        for neighbor in graph.neighbors(vertex) {
-            mark[*neighbor] = Some(vertex);
+        for &neighbor in graph.neighbors(vertex) {
+            mark[neighbor] = Some(vertex);
         }
 
         uncompressed_to_compressed[vertex] = Some(compressed_n_vertices);
@@ -160,8 +174,8 @@ pub fn compress_graph(
             }
 
             let mut found_mismatch = false;
-            for neighbor in graph.neighbors(vertex2) {
-                if mark[*neighbor].unwrap() != i {
+            for &neighbor in graph.neighbors(vertex2) {
+                if mark[neighbor].is_none() || mark[neighbor].unwrap() != i {
                     found_mismatch = true;
                     break;
                 }
@@ -213,6 +227,7 @@ pub fn compress_graph(
         compressed_x_adjacency[i + 1] = l;
     }
 
+    let n_edges = compressed_adjacency.len();
     return Some((
         WeightedGraph {
             graph: Graph {
@@ -220,7 +235,7 @@ pub fn compress_graph(
                 adjacency_lists: compressed_adjacency,
             },
             vertex_weights: Some(compressed_vertex_weights),
-            edge_weights: None,
+            edge_weights: Some(vec![1; n_edges]),
         },
         compressed_to_uncompressed_ptr,
         compressed_to_uncompressed,

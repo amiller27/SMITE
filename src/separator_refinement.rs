@@ -1,16 +1,34 @@
 use crate::config::{Config, RefinementType};
 use crate::graph::WeightedGraph;
+use crate::random::RangeRng;
 
+#[derive(Debug)]
 pub struct NrInfo {
     pub e_degrees: [usize; 2],
 }
 
+#[derive(Debug)]
 pub struct BoundaryInfo {
     pub _where: Vec<usize>,
     pub partition_weights: [i32; 3],
     pub boundary_ind: Vec<usize>,
     pub boundary_ptr: Vec<Option<usize>>,
-    pub nr_info: Vec<NrInfo>,
+    pub nr_info: Vec<Option<NrInfo>>,
+}
+
+impl BoundaryInfo {
+    pub fn delete(&mut self, i: usize) {
+        let index_to_update = self.boundary_ptr[i].unwrap();
+        if index_to_update + 1 == self.boundary_ind.len() {
+            self.boundary_ind.pop();
+            self.boundary_ptr[i] = None;
+        } else {
+            let value_to_move = self.boundary_ind.pop();
+            self.boundary_ind[index_to_update] = value_to_move.unwrap();
+            self.boundary_ptr[value_to_move.unwrap()] = Some(index_to_update);
+            self.boundary_ptr[i] = None;
+        }
+    }
 }
 
 pub struct GraphPyramidLevel {
@@ -26,12 +44,16 @@ pub struct BoundarizedGraphPyramidLevel {
     pub boundary_info: BoundaryInfo,
 }
 
-pub fn refine_two_way_node(
+pub fn refine_two_way_node<RNG>(
     config: &Config,
     graph_pyramid: Vec<GraphPyramidLevel>,
     org_graph: usize,
     mut graph: usize,
-) -> Vec<BoundarizedGraphPyramidLevel> {
+    rng: &mut RNG,
+) -> Vec<BoundarizedGraphPyramidLevel>
+where
+    RNG: RangeRng,
+{
     let mut boundarized_pyramid = Vec::new();
 
     if graph == org_graph {
@@ -63,6 +85,7 @@ pub fn refine_two_way_node(
                         &graph_pyramid[graph].graph,
                         boundary_info,
                         config.n_iterations,
+                        rng,
                     )
                 }
                 RefinementType::SEP2SIDED => {
@@ -71,13 +94,14 @@ pub fn refine_two_way_node(
                         &graph_pyramid[graph].graph,
                         boundary_info,
                         config.n_iterations,
+                        rng,
                     )
                 }
                 _ => panic!("What's this"),
             };
 
             boundarized_pyramid.push(BoundarizedGraphPyramidLevel {
-                graph: graph_pyramid[graph].graph.clone(),  // Eek, this is unnecessary
+                graph: graph_pyramid[graph].graph.clone(), // Eek, this is unnecessary
                 boundary_info: boundary_info,
             });
 
@@ -117,7 +141,12 @@ pub fn compute_two_way_node_partitioning_params(
     _config: &Config,
     graph: &WeightedGraph,
     graph_where: &Vec<usize>,
-) -> ([i32; 3], Vec<usize>, Vec<Option<usize>>, Vec<NrInfo>) {
+) -> (
+    [i32; 3],
+    Vec<usize>,
+    Vec<Option<usize>>,
+    Vec<Option<NrInfo>>,
+) {
     let mut partition_weights = [0, 0, 0];
     let mut graph_boundary_ind = Vec::new();
     let mut graph_boundary_ptr = vec![None; graph.graph.n_vertices()];
@@ -141,7 +170,9 @@ pub fn compute_two_way_node_partitioning_params(
                 }
             }
 
-            graph_nr_info.push(nr_info);
+            graph_nr_info.push(Some(nr_info));
+        } else {
+            graph_nr_info.push(None)
         }
     }
 

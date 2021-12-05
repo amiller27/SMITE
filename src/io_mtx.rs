@@ -85,5 +85,7 @@ where
         last_col += 1;
     }
 
+    graph.vertex_weights = Some(vec![1; graph.graph.n_vertices()]);
+    graph.edge_weights = Some(vec![1; graph.graph.n_edges()]);
     Ok(graph)
 }

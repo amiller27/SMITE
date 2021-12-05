@@ -1,9 +1,11 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Node {
     priority: f32,
     value: usize,
 }
 
+/// This is a MAX heap, not a min heap
+#[derive(Debug)]
 pub struct PriorityQueue {
     n_nodes: usize,
     // max_nodes: usize,
@@ -12,56 +14,56 @@ pub struct PriorityQueue {
 }
 
 impl PriorityQueue {
-    fn up_heap(&mut self, mut i: Option<usize>, priority: f32, value: usize) {
-        while i.is_some() {
-            let j = (i.unwrap() - 1) >> 1;
-            if priority < self.heap[j].priority {
-                self.heap[i.unwrap()] = self.heap[j];
-                self.locator[self.heap[i.unwrap()].value] = i;
-                i = Some(j);
+    fn up_heap(&mut self, mut i: usize, priority: f32, value: usize) {
+        while i > 0 {
+            let j = (i - 1) >> 1;
+            if priority > self.heap[j].priority {
+                self.heap[i] = self.heap[j];
+                self.locator[self.heap[i].value] = Some(i);
+                i = j;
             } else {
                 break;
             }
         }
 
-        self.heap[i.unwrap()] = Node {
+        self.heap[i] = Node {
             priority: priority,
             value: value,
         };
-        self.locator[value] = i;
+        self.locator[value] = Some(i);
     }
 
-    fn down_heap(&mut self, mut i: Option<usize>, priority: f32, value: usize) {
+    fn down_heap(&mut self, mut i: usize, priority: f32, value: usize) {
         loop {
-            let mut j = (i.unwrap() << 1) + 1;
+            let mut j = (i << 1) + 1;
             if !(j < self.n_nodes) {
                 break;
             }
 
-            if self.heap[j].priority < priority {
-                if j + 1 < self.n_nodes && self.heap[j + 1].priority < self.heap[j].priority {
+            if self.heap[j].priority > priority {
+                if j + 1 < self.n_nodes && self.heap[j + 1].priority > self.heap[j].priority {
                     j += 1;
                 }
 
-                self.heap[i.unwrap()] = self.heap[j];
-                self.locator[self.heap[i.unwrap()].value] = i;
-                i = Some(j);
-            } else if j + 1 < self.n_nodes && self.heap[j + 1].priority < priority {
+                self.heap[i] = self.heap[j];
+                self.locator[self.heap[i].value] = Some(i);
+                i = j;
+            } else if j + 1 < self.n_nodes && self.heap[j + 1].priority > priority {
                 j += 1;
 
-                self.heap[i.unwrap()] = self.heap[j];
-                self.locator[self.heap[i.unwrap()].value] = i;
-                i = Some(j);
+                self.heap[i] = self.heap[j];
+                self.locator[self.heap[i].value] = Some(i);
+                i = j;
             } else {
                 break;
             }
         }
 
-        self.heap[i.unwrap()] = Node {
+        self.heap[i] = Node {
             priority: priority,
             value: value,
         };
-        self.locator[value] = i;
+        self.locator[value] = Some(i);
     }
 
     pub fn create(max_nodes: usize) -> PriorityQueue {
@@ -90,18 +92,18 @@ impl PriorityQueue {
         let i = self.n_nodes;
         self.n_nodes += 1;
 
-        self.up_heap(Some(i), priority, value);
+        self.up_heap(i, priority, value);
     }
 
     pub fn delete(&mut self, value: usize) {
-        let i = self.locator[value];
+        let i = self.locator[value].unwrap();
         self.locator[value] = None;
 
         self.n_nodes -= 1;
         if self.n_nodes > 0 && self.heap.last().unwrap().value != value {
             let node = self.heap[self.n_nodes].value;
             let new_key = self.heap[self.n_nodes].priority;
-            let old_key = self.heap[i.unwrap()].priority;
+            let old_key = self.heap[i].priority;
 
             if new_key < old_key {
                 self.up_heap(i, new_key, node);
@@ -112,14 +114,14 @@ impl PriorityQueue {
     }
 
     pub fn update(&mut self, value: usize, priority: f32) {
-        let old_priority = self.heap[self.locator[value].unwrap()].priority;
+        let i = self.locator[value].unwrap();
+
+        let old_priority = self.heap[i].priority;
         if priority == old_priority {
             return;
         }
 
-        let i = self.locator[value];
-
-        if priority < old_priority {
+        if priority > old_priority {
             self.up_heap(i, priority, value);
         } else {
             self.down_heap(i, priority, value);
@@ -140,15 +142,16 @@ impl PriorityQueue {
         if i > 0 {
             let priority = self.heap[i].priority;
             let value = self.heap[i].value;
-            self.down_heap(Some(0), priority, value);
+            self.down_heap(0, priority, value);
         }
         return Some(vertex);
     }
 
     pub fn peek(&self) -> Option<usize> {
-        match self.heap.first() {
-            Some(node) => Some(node.value),
-            None => None,
+        if self.n_nodes == 0 {
+            None
+        } else {
+            Some(self.heap.first().unwrap().value)
         }
     }
 }

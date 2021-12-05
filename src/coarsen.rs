@@ -1,21 +1,37 @@
 use crate::config::{CoarseningType, Config};
 use crate::graph::{Graph, WeightedGraph};
+use crate::random::RangeRng;
 
+#[derive(Debug)]
 pub struct CoarseGraphResult {
     pub graph: WeightedGraph,
     pub total_vertex_weights: i32,
     pub coarsening_map: Vec<usize>,
 }
 
+const DEBUG_COARSEN: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_COARSEN {
+            println!($($x,)*);
+        }
+    };
+}
+
 /**
  * Returns the coarsening pyramid, with the original graph first, followed by coarser levels in order
  */
-pub fn coarsen_graph(
+pub fn coarsen_graph<RNG>(
     config: &Config,
     graph: WeightedGraph,
     coarsen_to: usize,
     total_vertex_weights: i32,
-) -> Vec<CoarseGraphResult> {
+    rng: &mut RNG,
+) -> Vec<CoarseGraphResult>
+where
+    RNG: RangeRng,
+{
     let equal_edge_weights = graph
         .edge_weights
         .as_ref()
@@ -38,10 +54,10 @@ pub fn coarsen_graph(
         let last_n_vertices = graph.graph.n_vertices();
 
         let coarse_graph_result = match config.coarsening_type {
-            CoarseningType::RM => match_random(config, graph, max_coarsest_vertex_weight),
+            CoarseningType::RM => match_random(config, graph, max_coarsest_vertex_weight, rng),
             CoarseningType::SHEM => {
                 if equal_edge_weights || graph.graph.n_edges() == 0 {
-                    match_random(config, graph, max_coarsest_vertex_weight)
+                    match_random(config, graph, max_coarsest_vertex_weight, rng)
                 } else {
                     match_shem(config, graph)
                 }
@@ -64,23 +80,27 @@ pub fn coarsen_graph(
     pyramid
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Match {
     Unmatched,
     Matched(usize),
 }
 
-fn match_random(
+fn match_random<RNG>(
     config: &Config,
     graph: &WeightedGraph,
     max_coarsest_vertex_weight: i32,
-) -> CoarseGraphResult {
+    rng: &mut RNG,
+) -> CoarseGraphResult
+where
+    RNG: RangeRng,
+{
     // WHY IS THIS UNUSED
     let _tperm = crate::random::permutation(
         graph.graph.n_vertices(),
         graph.graph.n_vertices() / 8,
         crate::random::Mode::Identity,
-        &mut rand::thread_rng(),
+        rng,
     );
 
     // WTFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -429,6 +449,16 @@ fn create_coarse_graph(
     matches: Vec<Match>,
     coarsening_map: Vec<usize>,
 ) -> CoarseGraphResult {
+    debug!("CreateCoarseGraph!!!");
+    debug!(
+        "graph: {}, {}: {:?}",
+        graph.graph.n_vertices(),
+        graph.graph.n_edges(),
+        graph.graph.adjacency_lists
+    );
+    debug!("coarse_n: {}", coarse_n_vertices);
+    debug!("matches: {:?}", matches);
+    debug!("coarsening: {:?}", coarsening_map);
     let do_vsize = matches!(config.objective_type, crate::config::ObjectiveType::VOLUME);
     if do_vsize {
         panic!();
@@ -439,7 +469,7 @@ fn create_coarse_graph(
     // drop_edges is false
 
     let mut hash_table: Vec<i32> = vec![-1; mask + 1];
-    let mut direct_table = vec![-1; coarse_n_vertices];
+    // let mut direct_table = vec![-1; coarse_n_vertices];
 
     let mut coarse_vertex_weights = Vec::<i32>::new();
     let mut coarse_x_adjacency = vec![0];
@@ -465,9 +495,10 @@ fn create_coarse_graph(
         // take care of the edges
         if graph.graph.degree(v) + graph.graph.degree(u) < mask >> 2 {
             // use mask
-            let coarse_n_vertices = coarse_vertex_weights.len();
+            let coarse_n_vertices = coarse_x_adjacency.len() - 1;
             hash_table[coarse_n_vertices & mask] = 0;
             coarse_adjacency.push(coarse_n_vertices);
+            coarse_adjacency_weights.push(-1);
 
             for j in graph.graph.x_adjacency[v]..graph.graph.x_adjacency[v + 1] {
                 let neighbor = graph.graph.adjacency_lists[j];
@@ -482,11 +513,23 @@ fn create_coarse_graph(
                 if m == -1 {
                     coarse_adjacency.push(k);
                     coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
-                    hash_table[kk] = coarse_adjacency.len() as i32 - 1;
+                    hash_table[kk] =
+                        (coarse_adjacency.len() - coarse_x_adjacency.last().unwrap()) as i32 - 1;
                 } else {
                     coarse_adjacency_weights[m as usize] += graph.edge_weights.as_ref().unwrap()[j];
                 }
             }
+
+            debug!("ca: {:?}", coarse_adjacency);
+            debug!("ca_w: {:?}", coarse_adjacency_weights);
+            debug!(
+                "hash_table: {:?}",
+                hash_table
+                    .iter()
+                    .enumerate()
+                    .filter(|(_i, &e)| e >= 0)
+                    .collect::<Vec<(usize, &i32)>>()
+            );
 
             if v != u {
                 for j in graph.graph.x_adjacency[u]..graph.graph.x_adjacency[u + 1] {
@@ -502,7 +545,9 @@ fn create_coarse_graph(
                     if m == -1 {
                         coarse_adjacency.push(k);
                         coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
-                        hash_table[kk] = coarse_adjacency.len() as i32 - 1;
+                        hash_table[kk] =
+                            (coarse_adjacency.len() - coarse_x_adjacency.last().unwrap()) as i32
+                                - 1;
                     } else {
                         coarse_adjacency_weights[m as usize] +=
                             graph.edge_weights.as_ref().unwrap()[j];
@@ -511,60 +556,89 @@ fn create_coarse_graph(
             }
 
             // zero out the hash table
-            for &k in coarse_adjacency.iter() {
+            debug!("zeroing");
+            for &k in &coarse_adjacency[*coarse_x_adjacency.last().unwrap()..] {
                 let mut kk = k & mask;
-                while coarse_adjacency[hash_table[kk] as usize] != k {
+                debug!("k: {}", k);
+                while coarse_adjacency
+                    [hash_table[kk] as usize + *coarse_x_adjacency.last().unwrap()]
+                    != k
+                {
+                    debug!(
+                        "kk: {}, htable: {}, cadj: {}",
+                        kk,
+                        hash_table[kk],
+                        coarse_adjacency
+                            [hash_table[kk] as usize + *coarse_x_adjacency.last().unwrap()]
+                    );
                     kk = (kk + 1) & mask;
                 }
+                hash_table[kk] = -1;
             }
+            debug!("Zeroed");
 
             // remove the contracted vertex from the list
-            coarse_adjacency[0] = coarse_adjacency.pop().unwrap();
-            coarse_adjacency_weights[0] = coarse_adjacency_weights.pop().unwrap();
+            debug!(
+                "ca len: {}, caw len: {}, cxa last: {}",
+                coarse_adjacency.len(),
+                coarse_adjacency_weights.len(),
+                coarse_x_adjacency.last().unwrap()
+            );
+            if coarse_adjacency.len() > *coarse_x_adjacency.last().unwrap() + 1 {
+                coarse_adjacency[*coarse_x_adjacency.last().unwrap()] =
+                    coarse_adjacency.pop().unwrap();
+                coarse_adjacency_weights[*coarse_x_adjacency.last().unwrap()] =
+                    coarse_adjacency_weights.pop().unwrap();
+            } else {
+                coarse_adjacency.pop();
+                coarse_adjacency_weights.pop();
+            }
         } else {
             // don't use mask
-            for j in graph.graph.x_adjacency[v]..graph.graph.x_adjacency[v + 1] {
-                let neighbor = graph.graph.adjacency_lists[j];
-                let k = coarsening_map[neighbor];
+            panic!();
 
-                let m = direct_table[k];
-                if m == -1 {
-                    coarse_adjacency.push(k);
-                    coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
-                    direct_table[k] = coarse_adjacency.len() as i32 - 1;
-                } else {
-                    coarse_adjacency_weights[m as usize] += graph.edge_weights.as_ref().unwrap()[j];
-                }
-            }
+            // for j in graph.graph.x_adjacency[v]..graph.graph.x_adjacency[v + 1] {
+            //     let neighbor = graph.graph.adjacency_lists[j];
+            //     let k = coarsening_map[neighbor];
 
-            if v != u {
-                for j in graph.graph.x_adjacency[u]..graph.graph.x_adjacency[u + 1] {
-                    let neighbor = graph.graph.adjacency_lists[j];
-                    let k = coarsening_map[neighbor];
-                    let m = direct_table[k];
-                    if m == -1 {
-                        coarse_adjacency.push(k);
-                        coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
-                        direct_table[k] = coarse_adjacency.len() as i32 - 1;
-                    } else {
-                        coarse_adjacency_weights[m as usize] +=
-                            graph.edge_weights.as_ref().unwrap()[j];
-                    }
-                }
+            //     let m = direct_table[k];
+            //     if m == -1 {
+            //         coarse_adjacency.push(k);
+            //         coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
+            //         direct_table[k] = coarse_adjacency.len() as i32 - 1;
+            //     } else {
+            //         coarse_adjacency_weights[m as usize] += graph.edge_weights.as_ref().unwrap()[j];
+            //     }
+            // }
 
-                // remove the contracted self-loop, when present
-                let j = direct_table[coarse_vertex_weights.len() - 1];
-                if j != -1 {
-                    coarse_adjacency[j as usize] = coarse_adjacency.pop().unwrap();
-                    coarse_adjacency_weights[j as usize] = coarse_adjacency_weights.pop().unwrap();
-                    direct_table[coarse_vertex_weights.len() - 1] = -1;
-                }
-            }
+            // if v != u {
+            //     for j in graph.graph.x_adjacency[u]..graph.graph.x_adjacency[u + 1] {
+            //         let neighbor = graph.graph.adjacency_lists[j];
+            //         let k = coarsening_map[neighbor];
+            //         let m = direct_table[k];
+            //         if m == -1 {
+            //             coarse_adjacency.push(k);
+            //             coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
+            //             direct_table[k] = coarse_adjacency.len() as i32 - 1;
+            //         } else {
+            //             coarse_adjacency_weights[m as usize] +=
+            //                 graph.edge_weights.as_ref().unwrap()[j];
+            //         }
+            //     }
 
-            // zero out the direct table
-            for &k in coarse_adjacency.iter() {
-                direct_table[k] = -1;
-            }
+            //     // remove the contracted self-loop, when present
+            //     let j = direct_table[coarse_vertex_weights.len() - 1];
+            //     if j != -1 {
+            //         coarse_adjacency[j as usize] = coarse_adjacency.pop().unwrap();
+            //         coarse_adjacency_weights[j as usize] = coarse_adjacency_weights.pop().unwrap();
+            //         direct_table[coarse_vertex_weights.len() - 1] = -1;
+            //     }
+            // }
+
+            // // zero out the direct table
+            // for &k in coarse_adjacency.iter() {
+            //     direct_table[k] = -1;
+            // }
         }
 
         // dropedges is false

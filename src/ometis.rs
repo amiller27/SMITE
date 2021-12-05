@@ -1,5 +1,6 @@
 use crate::config::{Config, Index};
 use crate::graph::{compress_graph, Graph, WeightedGraph};
+use crate::random::RangeRng;
 use std::error::Error;
 use std::fmt;
 
@@ -30,7 +31,7 @@ pub fn node_nd<RNG>(
     rng: &mut RNG,
 ) -> Result<NodeNDResult, MetisError>
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     let config = crate::config::default_config();
 
@@ -59,11 +60,14 @@ where
         ),
         None => (
             match vertex_weights {
-                Some(weights) => WeightedGraph {
-                    graph: graph,
-                    vertex_weights: Some(weights),
-                    edge_weights: None,
-                },
+                Some(weights) => {
+                    let n_edges = graph.n_edges();
+                    WeightedGraph {
+                        graph: graph,
+                        vertex_weights: Some(weights),
+                        edge_weights: Some(vec![1; n_edges]),
+                    }
+                }
                 None => WeightedGraph::from_unweighted(graph),
             },
             GraphData::Uncompressed,
@@ -146,7 +150,7 @@ fn m_level_nested_dissection<RNG>(
     order: &mut Vec<usize>,
     rng: &mut RNG,
 ) where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     let n_vertices = graph.graph.n_vertices();
     let boundarized_pyramid = m_level_node_bisection_multiple(config, graph, rng);
@@ -197,7 +201,7 @@ fn m_level_node_bisection_multiple<RNG>(
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     if config.n_separators == 1
         || graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_multiple()
@@ -214,7 +218,7 @@ fn m_level_node_bisection_l2<RNG>(
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     if graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_l2() {
         return m_level_node_bisection_l1(config, graph, rng);
@@ -229,12 +233,13 @@ fn m_level_node_bisection_l1<RNG>(
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
-    RNG: rand::Rng,
+    RNG: RangeRng,
 {
     let n_vertices = graph.graph.n_vertices();
     let coarsen_to = (graph.graph.n_vertices() / 8).clamp(40, 100);
     let total_weights = graph.vertex_weights.as_ref().unwrap().iter().sum();
-    let graph_pyramid = crate::coarsen::coarsen_graph(config, graph, coarsen_to, total_weights);
+    let graph_pyramid =
+        crate::coarsen::coarsen_graph(config, graph, coarsen_to, total_weights, rng);
     let n_i_parts = std::cmp::max(
         1,
         if n_vertices <= coarsen_to {
@@ -251,6 +256,7 @@ where
         separated_graph_pyramid,
         0,
         which_graph,
+        rng,
     );
 
     boundarized_pyramid

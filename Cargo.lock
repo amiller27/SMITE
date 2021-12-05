@@ -76,6 +76,7 @@ name = "rustapp"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "rand_core",
 ]
 
 [[package]]

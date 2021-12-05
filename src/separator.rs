@@ -1,13 +1,22 @@
 use crate::config::Config;
 use crate::graph::WeightedGraph;
+use crate::random::RangeRng;
 use crate::refinement::{BoundaryInfo, WhereIdEd};
 
-pub fn construct_separator(
+pub fn construct_separator<RNG>(
     config: &Config,
     graph: &WeightedGraph,
     boundary_info: BoundaryInfo,
     where_id_ed: &WhereIdEd,
-) -> (i32, BoundaryInfo, Vec<usize>) {
+    rng: &mut RNG,
+) -> (i32, BoundaryInfo, Vec<usize>)
+where
+    RNG: RangeRng,
+{
+    println!("ENTERED CONSTRUCT_SEPARATOR");
+    println!("graph: {:?}", graph);
+    println!("{:?}", boundary_info);
+    println!("{:?}", where_id_ed);
     let mut _where = where_id_ed._where.clone();
 
     // put the nodes in the boundary into the separator
@@ -36,6 +45,7 @@ pub fn construct_separator(
             nr_info: graph_nr_info,
         },
         1,
+        rng,
     );
 
     let (min_cut, boundary_info) = crate::fm_separator_refinement::two_way_node_refine_one_sided(
@@ -43,6 +53,7 @@ pub fn construct_separator(
         graph,
         boundary_info,
         4,
+        rng,
     );
 
     (
