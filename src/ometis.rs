@@ -4,6 +4,7 @@ use crate::random::RangeRng;
 use std::error::Error;
 use std::fmt;
 
+#[derive(Debug)]
 pub struct NodeNDResult {
     pub permutation: Vec<usize>,
     pub inverse_permutation: Vec<usize>,
@@ -99,6 +100,7 @@ where
             labels,
             0,
             &mut inverse_permutation,
+            matches!(info, GraphData::Compressed(_, _)),
             rng,
         )
     }
@@ -148,16 +150,18 @@ fn m_level_nested_dissection<RNG>(
     labels: Vec<usize>,
     first_vertex: usize,
     order: &mut Vec<usize>,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) where
     RNG: RangeRng,
 {
     let n_vertices = graph.graph.n_vertices();
-    let boundarized_pyramid = m_level_node_bisection_multiple(config, graph, rng);
+    let boundarized_pyramid =
+        m_level_node_bisection_multiple(config, graph, graph_is_compressed, rng);
     let curr_level = boundarized_pyramid.first().unwrap();
 
     for (i, &vertex) in curr_level.boundary_info.boundary_ind.iter().enumerate() {
-        order[labels[vertex]] = first_vertex + n_vertices - i;
+        order[labels[vertex]] = first_vertex + n_vertices - i - 1;
     }
 
     let (left_graph, left_labels, right_graph, right_labels) = split_graph_order(
@@ -170,7 +174,15 @@ fn m_level_nested_dissection<RNG>(
     const MMD_SWITCH: usize = 120;
     let left_n_vertices = left_graph.graph.n_vertices();
     if left_graph.graph.n_vertices() > MMD_SWITCH && left_graph.graph.n_edges() > 0 {
-        m_level_nested_dissection(config, left_graph, left_labels, first_vertex, order, rng)
+        m_level_nested_dissection(
+            config,
+            left_graph,
+            left_labels,
+            first_vertex,
+            order,
+            graph_is_compressed,
+            rng,
+        )
     } else {
         mmd_order(config, left_graph.graph, &left_labels, first_vertex, order);
     }
@@ -182,6 +194,7 @@ fn m_level_nested_dissection<RNG>(
             right_labels,
             first_vertex + left_n_vertices,
             order,
+            graph_is_compressed,
             rng,
         )
     } else {
@@ -198,6 +211,7 @@ fn m_level_nested_dissection<RNG>(
 fn m_level_node_bisection_multiple<RNG>(
     config: &Config,
     graph: WeightedGraph,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
@@ -206,7 +220,7 @@ where
     if config.n_separators == 1
         || graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_multiple()
     {
-        return m_level_node_bisection_l2(config, graph, rng);
+        return m_level_node_bisection_l2(config, graph, graph_is_compressed, rng);
     } else {
         panic!();
     }
@@ -215,13 +229,14 @@ where
 fn m_level_node_bisection_l2<RNG>(
     config: &Config,
     graph: WeightedGraph,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
     RNG: RangeRng,
 {
     if graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_l2() {
-        return m_level_node_bisection_l1(config, graph, rng);
+        return m_level_node_bisection_l1(config, graph, graph_is_compressed, rng);
     } else {
         panic!();
     }
@@ -230,6 +245,7 @@ where
 fn m_level_node_bisection_l1<RNG>(
     config: &Config,
     graph: WeightedGraph,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
@@ -248,14 +264,20 @@ where
             config.init_n_i_parts()
         },
     );
-    let separated_graph_pyramid =
-        crate::initialize_partition::initialize_separator(config, graph_pyramid, n_i_parts, rng);
+    let separated_graph_pyramid = crate::initialize_partition::initialize_separator(
+        config,
+        graph_pyramid,
+        n_i_parts,
+        graph_is_compressed,
+        rng,
+    );
     let which_graph = separated_graph_pyramid.len() - 1;
     let boundarized_pyramid = crate::separator_refinement::refine_two_way_node(
         config,
         separated_graph_pyramid,
         0,
         which_graph,
+        graph_is_compressed,
         rng,
     );
 
@@ -291,7 +313,7 @@ fn split_graph_order(
 
     let mut left_graph = WeightedGraph {
         graph: Graph {
-            x_adjacency: vec![],
+            x_adjacency: vec![0],
             adjacency_lists: vec![],
         },
         vertex_weights: Some(vec![]),
@@ -299,7 +321,7 @@ fn split_graph_order(
     };
     let mut right_graph = WeightedGraph {
         graph: Graph {
-            x_adjacency: vec![],
+            x_adjacency: vec![0],
             adjacency_lists: vec![],
         },
         vertex_weights: Some(vec![]),

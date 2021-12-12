@@ -9,6 +9,7 @@ pub fn initialize_separator<RNG>(
     config: &Config,
     graph_pyramid: Vec<crate::coarsen::CoarseGraphResult>,
     n_i_parts: usize,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> Vec<GraphPyramidLevel>
 where
@@ -55,6 +56,7 @@ where
                 &coarsest_level.graph,
                 boundary_info,
                 &where_id_ed,
+                graph_is_compressed,
                 rng,
             );
             where_id_ed._where = _where;
@@ -65,12 +67,21 @@ where
         _ => panic!("WTF"),
     };
 
-    vec![GraphPyramidLevel {
-        graph: coarsest_level.graph.clone(), // Eek, this should be unnecessary
-        coarsening_map: coarsest_level.coarsening_map.clone(), // Eek
-        coarser_graph_where: where_id_ed._where,
-        total_vertex_weights: coarsest_level.total_vertex_weights,
-    }]
+    graph_pyramid[..graph_pyramid.len()-1]
+        .iter()
+        .map(|pyramid_level| GraphPyramidLevel {
+            graph: pyramid_level.graph.clone(),
+            coarsening_map: pyramid_level.coarsening_map.clone(),
+            total_vertex_weights: pyramid_level.total_vertex_weights,
+            coarser_graph_where: vec![],
+        })
+        .chain(std::iter::once(GraphPyramidLevel {
+            graph: coarsest_level.graph.clone(), // Eek, this should be unnecessary
+            coarsening_map: coarsest_level.coarsening_map.clone(), // Eek
+            coarser_graph_where: where_id_ed._where,
+            total_vertex_weights: coarsest_level.total_vertex_weights,
+        }))
+        .collect()
 }
 
 fn setup_two_way_balance_multipliers(

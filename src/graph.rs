@@ -60,6 +60,7 @@ impl WeightedGraph {
     }
 }
 
+#[derive(Debug)]
 pub struct MutableGraph {
     pub adjacency: Vec<Vec<usize>>,
 }
@@ -89,9 +90,9 @@ impl MutableGraph {
         self.adjacency.len()
     }
 
-    pub fn add_neighbor(&mut self, vertex: usize, neighbor: usize) {
-        self.adjacency[vertex].push(neighbor);
-    }
+    // pub fn add_neighbor(&mut self, vertex: usize, neighbor: usize) {
+    //     self.adjacency[vertex].push(neighbor);
+    // }
 }
 
 #[derive(PartialOrd, Eq, Debug, Clone)]

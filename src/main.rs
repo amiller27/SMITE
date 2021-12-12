@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rng =
         crate::random::MockRng::from_trace(format!("/home/aaron/rng_traces/{}.txt", mat_name))?;
 
-    crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rng)?;
+    let result = crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rng)?;
+    println!("RESULT: {:?}", result);
     Ok(())
 }

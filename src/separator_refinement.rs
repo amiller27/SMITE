@@ -29,8 +29,14 @@ impl BoundaryInfo {
             self.boundary_ptr[i] = None;
         }
     }
+
+    pub fn insert(&mut self, i: usize) {
+        self.boundary_ind.push(i);
+        self.boundary_ptr[i] = Some(self.boundary_ind.len() - 1);
+    }
 }
 
+#[derive(Debug)]
 pub struct GraphPyramidLevel {
     pub graph: WeightedGraph,
     pub coarsening_map: Vec<usize>,
@@ -49,6 +55,7 @@ pub fn refine_two_way_node<RNG>(
     graph_pyramid: Vec<GraphPyramidLevel>,
     org_graph: usize,
     mut graph: usize,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> Vec<BoundarizedGraphPyramidLevel>
 where
@@ -65,8 +72,8 @@ where
             let boundary_info = project_two_way_node_partition(
                 config,
                 &graph_pyramid[graph].graph,
-                &graph_pyramid[graph].coarsening_map,
-                &graph_pyramid[graph].coarser_graph_where,
+                &graph_pyramid[graph + 1].coarsening_map,
+                &graph_pyramid[graph + 1].coarser_graph_where,
             );
 
             // delete graph->coarser
@@ -85,6 +92,7 @@ where
                         &graph_pyramid[graph].graph,
                         boundary_info,
                         config.n_iterations,
+                        graph_is_compressed,
                         rng,
                     )
                 }

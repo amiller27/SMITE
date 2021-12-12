@@ -6,8 +6,22 @@ pub struct MMDResult {
     pub perm: Vec<usize>,
 }
 
+const DEBUG_MMD: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_MMD{
+            println!($($x,)*);
+        }
+    };
+}
+
 pub fn gen_mmd(full_graph: Graph) -> MMDResult {
     const DELTA: usize = 1;
+
+    debug!("HERE BE DRAGONS");
+    debug!("THIS IS NOT A PLACE OF HONOR");
+    debug!("{:?}", full_graph);
 
     if full_graph.n_vertices() == 0 {
         panic!();
@@ -26,6 +40,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
     // eliminate all isolated nodes
     let mut next_minimum_degree_node = head[0];
     while let ForwardPtr::Next(minimum_degree_node) = next_minimum_degree_node {
+        debug!("mini: {}", minimum_degree_node);
         next_minimum_degree_node = inverse_perm[minimum_degree_node];
         marker[minimum_degree_node] = Marker::Zero;
         inverse_perm[minimum_degree_node] = ForwardPtr::NextNeg(n_ordered_nodes);
@@ -38,9 +53,26 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
     let mut tag = 1;
     head[0] = ForwardPtr::None;
-    let mut minimum_degree = 1;
+    let mut minimum_degree = 2;
 
+    let mut i = 0;
     loop {
+        debug!(
+            "LOOP {} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+            i
+        );
+        i += 1;
+        debug!("{:?}", graph);
+        debug!("head: {:?}", head);
+        debug!("inverse_perm: {:?}", inverse_perm);
+        debug!("perm: {:?}", perm);
+        debug!("qsize: {:?}", qsize);
+        debug!("marker: {:?}", marker);
+        debug!("n_ordered_nodes: {:?}", n_ordered_nodes);
+        debug!("next_minimum_degree_node: {:?}", next_minimum_degree_node);
+        debug!("tag: {}", tag);
+        debug!("minimum_degree: {}", minimum_degree);
+
         while matches!(head[minimum_degree], ForwardPtr::None) {
             minimum_degree += 1;
         }
@@ -54,6 +86,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
             // This can be simplified if DELTA == 1, which is the only way this is used in METIS
             let mut hit_limit = false;
+            debug!("minimum degree start: {}", minimum_degree);
             while matches!(maybe_minimum_degree_node, ForwardPtr::None) {
                 minimum_degree += 1;
 
@@ -64,6 +97,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
                 maybe_minimum_degree_node = head[minimum_degree];
             }
+            debug!("post loop: {}", minimum_degree);
 
             if hit_limit {
                 break;
@@ -82,7 +116,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             }
             inverse_perm[minimum_degree_node] = ForwardPtr::NextNeg(n_ordered_nodes);
             // nnz_upper_bound += minimum_degree + qsize[minimum_degree_node] - 1;
-            if n_ordered_nodes + qsize[minimum_degree_node] > graph.n_vertices() {
+            if n_ordered_nodes + qsize[minimum_degree_node] >= graph.n_vertices() {
                 return numbering(graph.n_vertices(), inverse_perm, qsize);
             }
 
@@ -91,6 +125,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             // Note: don't reset, the only use in METIS has maxint = max of Index type
             tag += 1;
 
+            debug!("ENTER ELIMINATE");
             let eliminate_result = eliminate(
                 minimum_degree_node,
                 graph,
@@ -107,6 +142,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             perm = eliminate_result.3;
             qsize = eliminate_result.4;
             marker = eliminate_result.5;
+            debug!("EXIT ELIMINATE");
 
             n_ordered_nodes += qsize[minimum_degree_node];
             ehead.insert(0, minimum_degree_node);
@@ -123,6 +159,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             break;
         }
 
+        debug!("ENTER UPDATE");
         let update_result = update(
             ehead,
             &graph,
@@ -142,12 +179,13 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
         qsize = update_result.4;
         marker = update_result.5;
         tag = update_result.6;
+        debug!("EXIT UPDATE");
     }
 
     return numbering(graph.n_vertices(), inverse_perm, qsize);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum BackPtr {
     Previous(usize),
     Degree(usize),
@@ -155,14 +193,14 @@ enum BackPtr {
     None,
 }
 
-#[derive(Clone, PartialEq, Copy)]
+#[derive(Clone, PartialEq, Copy, Debug)]
 enum ForwardPtr {
     Next(usize),
     NextNeg(usize),
     None,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Marker {
     Maxint,
     Zero,
@@ -179,7 +217,7 @@ fn initialization(
     Vec<Index>,
     Vec<Marker>,
 ) {
-    let qsize = vec![0; graph.n_vertices()];
+    let qsize = vec![1; graph.n_vertices()];
     let list = vec![-1; graph.n_vertices()];
     let marker = vec![Marker::Zero; graph.n_vertices()];
 
@@ -224,32 +262,54 @@ fn eliminate(
     Vec<usize>,
     Vec<Marker>,
 ) {
+    debug!("---------- AT START OF ELIMINATE -------------");
+    debug!("minimum_degree_node: {}", minimum_degree_node);
+    debug!("{:?}", graph);
+    debug!("head: {:?}", head);
+    debug!("forward: {:?}", forward);
+    debug!("backward: {:?}", backward);
+    debug!("qsize: {:?}", qsize);
+    debug!("marker: {:?}", marker);
+    debug!("tag: {}", tag);
+    debug!("------------ END START OF ELIMINATE --------------");
+
     // find the reachable set of minimum_degree_node and place it in the data structure
+    debug!(
+        "215 Setting marker [{}] to tag {:?}",
+        minimum_degree_node,
+        Marker::Tag(tag)
+    );
     marker[minimum_degree_node] = Marker::Tag(tag);
 
     // element points to the beginning of the list of eliminated neighbors of minimum_degree_node,
     // and rloc gives the storage location for the next reachable node
     let mut eliminated_neighbors = Vec::<usize>::new();
     let mut neighbors_to_keep = Vec::<usize>::new();
+    debug!("278 Finding neighbors of {}", minimum_degree_node);
     for &neighbor in graph.neighbors(minimum_degree_node) {
-        if neighbor == 0 {
-            // this condition is wrong
-            break;
-        }
+        // I think this check in mmd.c is "are we at the end of the neighbor list", which is unnecessary here
+        // if neighbor == 0 {
+        //     // this condition is wrong
+        //     break;
+        // }
 
         if matches!(marker[neighbor], Marker::Zero)
             || matches!(marker[neighbor], Marker::Tag(t) if t < tag)
         {
+            debug!(
+                "230 Setting marker [{}] to tag {:?}",
+                neighbor,
+                Marker::Tag(tag)
+            );
             marker[neighbor] = Marker::Tag(tag);
             if matches!(forward[neighbor], ForwardPtr::NextNeg(_)) {
                 eliminated_neighbors.push(neighbor);
             } else {
+                debug!("297 Keeping neighbor {}", neighbor);
                 neighbors_to_keep.push(neighbor)
             }
         }
     }
-
-    graph.adjacency[minimum_degree_node] = neighbors_to_keep;
 
     // merge with reachable nodes from generalized elements
     while !eliminated_neighbors.is_empty() {
@@ -262,11 +322,19 @@ fn eliminate(
                 || matches!(marker[node], Marker::Tag(t) if t < tag))
                 && matches!(forward[node], ForwardPtr::Next(_) | ForwardPtr::None)
             {
+                debug!(
+                    "256 Setting marker [{}] to tag {:?}",
+                    node,
+                    Marker::Tag(tag)
+                );
                 marker[node] = Marker::Tag(tag);
-                graph.add_neighbor(minimum_degree_node, node);
+                debug!("320 Keeping neighbor {}", node);
+                neighbors_to_keep.push(node);
             }
         }
     }
+
+    graph.adjacency[minimum_degree_node] = neighbors_to_keep;
 
     // for each node in the reachable set, do the following
     let link = minimum_degree_node;
@@ -306,6 +374,11 @@ fn eliminate(
             // merge rnode with minimum_degree_node
             qsize[minimum_degree_node] += qsize[rnode];
             qsize[rnode] = 0;
+            debug!(
+                "313 Setting marker [{}] to maxint {:?}",
+                rnode,
+                Marker::Maxint
+            );
             marker[rnode] = Marker::Maxint;
             forward[rnode] = ForwardPtr::NextNeg(minimum_degree_node);
             backward[rnode] = BackPtr::NegMaxInt;
@@ -322,6 +395,14 @@ fn eliminate(
 }
 
 fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usize>) -> MMDResult {
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("NUMBERING");
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("in_inverse_perm: {:?}", in_inverse_perm);
+    debug!("qsize: {:?}", qsize);
+
     let mut iperm = vec![ForwardPtr::None; n_vertices];
 
     let mut perm = vec![ForwardPtr::None; n_vertices];
@@ -332,12 +413,14 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
         };
 
         if qsize[node] == 0 {
-            perm[node] = ForwardPtr::Next(i);
+            perm[node] = ForwardPtr::NextNeg(i);
         } else {
             // qsize > 0
-            perm[node] = ForwardPtr::NextNeg(i);
+            perm[node] = ForwardPtr::Next(i);
         }
     }
+    debug!("iperm: {:?}", iperm);
+    debug!("perm: {:?}", perm);
 
     // for each node which has been merged, do the following
     for node in 0..n_vertices {
@@ -370,13 +453,19 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
                 };
                 nextf = perm[father];
             }
+        } else {
+            iperm[node] = in_inverse_perm[node];
         }
     }
+
+    debug!("449 YOLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
+    debug!("iperm: {:?}", iperm);
+    debug!("perm: {:?}", perm);
 
     // ready to compute perm
     for node in 0..n_vertices {
         let num = match iperm[node] {
-            ForwardPtr::Next(num) => num,
+            ForwardPtr::NextNeg(num) => num,
             _ => panic!(),
         };
         iperm[node] = ForwardPtr::Next(num);
@@ -422,10 +511,12 @@ fn update(
     usize,
 ) {
     let minimum_degree_0 = minimum_degree + delta;
+    debug!("Set mdeg0 to mdeg {} + delta {}", minimum_degree, delta);
     // n100
     for element in ehead {
         // for each of the newly formed elements, do the following.  reset tag value if necessary
-        let m_tag = tag + minimum_degree_0;
+        let m_tag = tag + minimum_degree_0 + 1; // our md0 is offset by 1
+        debug!("Set mtag to tag {} + mdeg0 {}", tag, minimum_degree_0);
         // I _think_ we never have to reset here (assuming we use int64)
         //if m_tag >= max_int {
         //    tag = 1;
@@ -446,24 +537,44 @@ fn update(
         let mut qx = Vec::new();
         let mut deg0 = -1;
 
+        debug!("Looking at neighbors of element {}", element);
+
         // n400
         for &enode in graph.neighbors(element) {
-            deg0 += qsize[enode] as i32;
-            marker[enode] = Marker::Tag(m_tag);
+            if qsize[enode] != 0 {
+                deg0 += qsize[enode] as i32;
+                debug!(
+                    "497 Setting marker [{}] to tag {:?}",
+                    enode,
+                    Marker::Tag(m_tag)
+                );
+                marker[enode] = Marker::Tag(m_tag);
 
-            // enode requires a degree update
-            if matches!(backward[enode], BackPtr::None) {
-                // place either in qx or q2 list
-                if forward[enode] != ForwardPtr::Next(2) {
-                    qx.insert(0, enode);
-                } else {
-                    q2.insert(0, enode);
+                // enode requires a degree update
+                debug!("Checking enode {}", enode);
+                if matches!(backward[enode], BackPtr::None) {
+                    debug!("Matches");
+                    // place either in qx or q2 list
+                    debug!("forward: {:?}", forward[enode]);
+                    // Not sure what this check is doing, but based on testing it should be 1 not 2 like in mmd.c
+                    if forward[enode] != ForwardPtr::Next(1) {
+                        debug!("Insert enode {} in qx", enode);
+                        qx.insert(0, enode);
+                    } else {
+                        debug!("Insert enode {} in q2", enode);
+                        q2.insert(0, enode);
+                    }
                 }
             }
         }
 
         // for each node in q2 list, do the following
+        debug!("ENTER q2");
         for enode in q2 {
+            if !matches!(backward[enode], BackPtr::None) {
+                continue;
+            }
+            debug!("enode {} in q2", enode);
             tag += 1;
             let mut deg = deg0;
 
@@ -484,14 +595,24 @@ fn update(
                             || matches!(marker[node], Marker::Tag(t) if t < tag)
                         {
                             // node is not yet considered
+                            debug!(
+                                "549 Setting marker [{}] to tag {:?}",
+                                node,
+                                Marker::Tag(tag)
+                            );
                             marker[node] = Marker::Tag(tag);
                             deg += qsize[node] as i32;
                         } else if matches!(backward[node], BackPtr::None) {
-                            if forward[node] == ForwardPtr::Next(2) {
+                            if forward[node] == ForwardPtr::Next(1) {
                                 // node is indistinguishable from enode.
                                 // merge them into a new supernode.
                                 qsize[enode] += qsize[node];
                                 qsize[node] = 0;
+                                debug!(
+                                    "559 Setting marker [{}] to maxint {:?}",
+                                    node,
+                                    Marker::Maxint
+                                );
                                 marker[node] = Marker::Maxint;
                                 forward[node] = ForwardPtr::NextNeg(enode);
                                 backward[node] = BackPtr::NegMaxInt;
@@ -524,7 +645,13 @@ fn update(
 
         // n1500
         // for each enode in the qx list, do the following
+        debug!("ENTER qx");
         for enode in qx {
+            debug!("enode {} in qx", enode);
+            if !matches!(backward[enode], BackPtr::None) {
+                debug!("continue 635, backward: {:?}", backward[enode]);
+                continue;
+            }
             tag += 1;
             let mut deg = deg0;
 
@@ -533,6 +660,11 @@ fn update(
                 if matches!(marker[neighbor], Marker::Zero)
                     || matches!(marker[neighbor], Marker::Tag(t) if t < tag)
                 {
+                    debug!(
+                        "591 Setting marker [{}] to tag {:?}",
+                        neighbor,
+                        Marker::Tag(tag)
+                    );
                     marker[neighbor] = Marker::Tag(tag);
                     if matches!(forward[neighbor], ForwardPtr::None | ForwardPtr::Next(_)) {
                         // if uneliminated, include it in deg count
@@ -544,6 +676,11 @@ fn update(
                             if matches!(marker[node], Marker::Zero)
                                 || matches!(marker[node], Marker::Tag(t) if t < tag)
                             {
+                                debug!(
+                                    "609 Setting marker [{}] to tag {:?}",
+                                    node,
+                                    Marker::Tag(tag)
+                                );
                                 marker[node] = Marker::Tag(tag);
                                 deg += qsize[node] as i32;
                             }

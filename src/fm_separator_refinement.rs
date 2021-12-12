@@ -21,6 +21,16 @@ macro_rules! debug_two {
     };
 }
 
+const DEBUG_ONE_SIDED: bool = false;
+
+macro_rules! debug_one {
+    ($($x: expr),*) => {
+        if DEBUG_ONE_SIDED {
+            println!($($x,)*);
+        }
+    };
+}
+
 pub fn two_way_node_refine_two_sided<RNG>(
     config: &Config,
     graph: &WeightedGraph,
@@ -35,7 +45,6 @@ where
     debug_two!("{:?}", graph);
     debug_two!("{:?}", boundary_info);
     debug_two!("{}", n_iterations);
-    let mut swaps = Vec::new();
 
     let mult = 0.5 * config.ub_factors[0];
     let bad_max_partition_weight =
@@ -94,6 +103,7 @@ where
         //    1
         //};
         let mut to;
+        let mut swaps = Vec::new();
         for n_swaps in 0..graph.graph.n_vertices() {
             for _i in 0..5 {
                 debug_two!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
@@ -369,15 +379,16 @@ pub fn two_way_node_refine_one_sided<RNG>(
     graph: &WeightedGraph,
     mut boundary_info: BoundaryInfo,
     n_iterations: i32,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> (i32, BoundaryInfo)
 where
     RNG: RangeRng,
 {
-    println!("ENTERING TWO_WAY_NODE_REFINE_ONE_SIDED");
-    println!("{:?}", graph);
-    println!("{:?}", boundary_info);
-    println!("{}", n_iterations);
+    debug_one!("ENTERING TWO_WAY_NODE_REFINE_ONE_SIDED");
+    debug_one!("{:?}", graph);
+    debug_one!("{:?}", boundary_info);
+    debug_one!("{}", n_iterations);
     let mut queue = PriorityQueue::create(graph.graph.n_vertices());
 
     let mult = 0.5 * config.ub_factors[0];
@@ -393,11 +404,10 @@ where
 
     let mut min_cut_result = None;
 
-    let mut swaps = Vec::new();
-
     for pass in 0..2 * n_iterations {
         // the 2 * niter is for the two sides
         std::mem::swap(&mut to, &mut other);
+        debug_one!("NEW PASS {} ({}, {})", pass, to, other);
 
         queue.reset();
 
@@ -421,7 +431,7 @@ where
             );
         }
 
-        let limit = if config.compress_before_ordering {
+        let limit = if graph_is_compressed {
             std::cmp::min(5 * n_boundary, 500)
         } else {
             std::cmp::min(3 * n_boundary, 300)
@@ -431,7 +441,20 @@ where
         let mut m_ptr = Vec::new();
         let mut min_diff =
             (boundary_info.partition_weights[0] - boundary_info.partition_weights[1]).abs();
+        let mut swaps = Vec::new();
+
         for n_swaps in 0..graph.graph.n_vertices() {
+            debug_one!("SWAP {}", n_swaps);
+            debug_one!("{:?}", boundary_info);
+            debug_one!("{:?}", queue);
+            debug_one!("to: {}, other: {}", to, other);
+            debug_one!("min_cut_result: {:?}", min_cut_result);
+            debug_one!("swaps: {:?}", swaps);
+            debug_one!("min_cut_order: {:?}", min_cut_order);
+            debug_one!("min_cut: {}", min_cut);
+            debug_one!("m_ptr: {:?}", m_ptr);
+            debug_one!("min_diff: {}", min_diff);
+
             let mut m_ind = Vec::new();
 
             let maybe_high_gain = queue.pop();
@@ -455,10 +478,17 @@ where
                 panic!();
             }
 
+            debug_one!(
+                "pwgt: {}, vwgt: {}, bmpw: {}",
+                boundary_info.partition_weights[to],
+                graph.vertex_weights.as_ref().unwrap()[high_gain],
+                bad_max_partition_weight
+            );
             if boundary_info.partition_weights[to]
                 + graph.vertex_weights.as_ref().unwrap()[high_gain]
                 > bad_max_partition_weight as i32
             {
+                debug_one!("Break 469");
                 break; // no point going any further. balance will be bad
             }
 
@@ -477,8 +507,18 @@ where
                 min_cut = boundary_info.partition_weights[2];
                 min_cut_order = Some(n_swaps);
                 min_diff = new_diff;
-            } else if n_swaps - min_cut_order.unwrap() > 3 * limit
-                || (n_swaps - min_cut_order.unwrap() > limit
+            } else if n_swaps as i32
+                - match min_cut_order {
+                    Some(o) => o as i32,
+                    None => -1,
+                }
+                > 3 * limit as i32
+                || (n_swaps as i32
+                    - match min_cut_order {
+                        Some(o) => o as i32,
+                        None => -1,
+                    }
+                    > limit as i32
                     && boundary_info.partition_weights[2] as f32 > 1.10 * min_cut as f32)
             {
                 boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()
@@ -487,24 +527,27 @@ where
                 break; // no further improvement, break out
             }
 
+            debug_one!("high_gain: {}", high_gain);
             boundary_info.delete(high_gain);
 
             boundary_info.partition_weights[to] +=
                 graph.vertex_weights.as_ref().unwrap()[high_gain];
-            boundary_info._where[high_gain] += to;
+            boundary_info._where[high_gain] = to;
             swaps.push(high_gain);
 
             // update the degrees of the affected nodes
             for &k in graph.graph.neighbors(high_gain) {
+                debug_one!("Neighbor {}", k);
                 if boundary_info._where[k] == 2 {
+                    debug_one!("Branch 1");
                     // for the in-separator vertices modify their edegree[to]
                     boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] +=
                         graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
                 } else if boundary_info._where[k] == other {
+                    debug_one!("Branch 2");
                     // this vertex is pulled into the separator
-                    boundary_info.boundary_ind.push(k);
-                    boundary_info.boundary_ptr[k] =
-                        Some(boundary_info.boundary_ind[boundary_info.boundary_ind.len() - 1]);
+                    debug_one!("Inserting k {}", k);
+                    boundary_info.insert(k);
 
                     m_ind.push(k); // keep track for rollback
                     boundary_info._where[k] = 2;
@@ -519,15 +562,15 @@ where
                         } else {
                             boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] -=
                                 graph.vertex_weights.as_ref().unwrap()[k] as usize;
-                        }
 
-                        // since the moves are one-sided this vertex has not been moved yet
-                        queue.update(
-                            kk,
-                            (graph.vertex_weights.as_ref().unwrap()[kk]
-                                - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
-                                    as i32) as f32,
-                        );
+                            // since the moves are one-sided this vertex has not been moved yet
+                            queue.update(
+                                kk,
+                                (graph.vertex_weights.as_ref().unwrap()[kk]
+                                    - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
+                                        as i32) as f32,
+                            );
+                        }
                     }
                     boundary_info.nr_info[k] = Some(crate::separator_refinement::NrInfo {
                         e_degrees: e_degrees,

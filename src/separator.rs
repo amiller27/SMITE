@@ -8,6 +8,7 @@ pub fn construct_separator<RNG>(
     graph: &WeightedGraph,
     boundary_info: BoundaryInfo,
     where_id_ed: &WhereIdEd,
+    graph_is_compressed: bool,
     rng: &mut RNG,
 ) -> (i32, BoundaryInfo, Vec<usize>)
 where
@@ -53,6 +54,7 @@ where
         graph,
         boundary_info,
         4,
+        graph_is_compressed,
         rng,
     );
 
