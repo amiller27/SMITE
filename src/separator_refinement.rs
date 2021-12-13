@@ -69,6 +69,11 @@ where
         loop {
             graph -= 1;
 
+            println!(
+                "graph: {}, where: {:?}",
+                graph,
+                graph_pyramid[graph + 1].coarser_graph_where
+            );
             let boundary_info = project_two_way_node_partition(
                 config,
                 &graph_pyramid[graph].graph,
@@ -130,7 +135,7 @@ fn project_two_way_node_partition(
 ) -> BoundaryInfo {
     let graph_where = coarsening_map
         .iter()
-        .map(|v| coarser_graph_where[*v])
+        .map(|&v| coarser_graph_where[v])
         .collect();
 
     let (partition_weights, graph_boundary_ind, graph_boundary_ptr, graph_nr_info) =
@@ -162,7 +167,7 @@ pub fn compute_two_way_node_partitioning_params(
 
     for i in 0..graph.graph.n_vertices() {
         let me = graph_where[i];
-        partition_weights[me] += graph.vertex_weights.as_ref().unwrap()[i];
+        partition_weights[me] += graph.vertex_weights[i];
 
         if me == 2 {
             // if it is on the separator do some computations
@@ -170,11 +175,10 @@ pub fn compute_two_way_node_partitioning_params(
             graph_boundary_ptr[i] = Some(graph_boundary_ind.len() - 1);
 
             let mut nr_info = NrInfo { e_degrees: [0, 0] };
-            for neighbor in graph.graph.neighbors(i) {
-                let other = graph_where[*neighbor];
+            for &neighbor in graph.graph.neighbors(i) {
+                let other = graph_where[neighbor];
                 if other != 2 {
-                    nr_info.e_degrees[other] +=
-                        graph.vertex_weights.as_ref().unwrap()[*neighbor] as usize;
+                    nr_info.e_degrees[other] += graph.vertex_weights[neighbor] as usize;
                 }
             }
 

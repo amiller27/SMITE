@@ -4,6 +4,16 @@ use crate::random::RangeRng;
 use std::error::Error;
 use std::fmt;
 
+const DEBUG_OMETIS: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_OMETIS {
+            println!($($x,)*);
+        }
+    };
+}
+
 #[derive(Debug)]
 pub struct NodeNDResult {
     pub permutation: Vec<usize>,
@@ -28,7 +38,7 @@ enum GraphData {
 
 pub fn node_nd<RNG>(
     graph: Graph,
-    vertex_weights: Option<Vec<Index>>,
+    vertex_weights: Vec<Index>,
     rng: &mut RNG,
 ) -> Result<NodeNDResult, MetisError>
 where
@@ -61,22 +71,21 @@ where
         ),
         None => (
             match vertex_weights {
-                Some(weights) => {
+                weights => {
                     let n_edges = graph.n_edges();
                     WeightedGraph {
                         graph: graph,
-                        vertex_weights: Some(weights),
-                        edge_weights: Some(vec![1; n_edges]),
+                        vertex_weights: weights,
+                        edge_weights: vec![1; n_edges],
                     }
-                }
-                None => WeightedGraph::from_unweighted(graph),
+                } //None => WeightedGraph::from_unweighted(graph),
             },
             GraphData::Uncompressed,
             (0..n_vertices).collect(),
         ),
     };
 
-    println!(
+    debug!(
         "Compressed: {}, {}: {:?}",
         compressed_graph.graph.n_vertices(),
         compressed_graph.graph.n_edges(),
@@ -236,16 +245,62 @@ where
     RNG: RangeRng,
 {
     if graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_l2() {
-        return m_level_node_bisection_l1(config, graph, graph_is_compressed, rng);
-    } else {
-        panic!();
+        return m_level_node_bisection_l1(
+            config,
+            graph,
+            graph_is_compressed,
+            config.init_n_i_parts(),
+            rng,
+        );
     }
+
+    panic!();
+    // let coarsen_to = std::cmp::max(100, graph.graph.n_vertices() / 30);
+    // let graph_pyramid = crate::coarsen::coarsen_graph_n_levels(config, graph, coarsen_to, 4);
+
+    // let mut best_where;
+    // let min_cut = graph.vertex_weights.unwrap().iter().sum();
+    // const N_RUNS: usize = 5;
+    // for i in 0..N_RUNS {
+    //     // This is most definitely wrong
+    //     let (separated_pyramid, new_min_cut, _where) = m_level_node_bisection_l1(
+    //         config,
+    //         graph_pyramid.last().unwrap(),
+    //         graph_is_compressed,
+    //         (0.7 * config.init_n_i_parts() as f64) as usize,
+    //         rng,
+    //     );
+
+    //     if i == 0 || new_min_cut < min_cut {
+    //         min_cut = new_min_cut;
+    //         if i < N_RUNS - 1 {
+    //             best_where = _where.clone();
+    //         }
+    //     }
+
+    //     if min_cut == 0 {
+    //         break;
+    //     }
+    // }
+
+    // let _where = best_where;
+
+    // let which_graph = separated_graph_pyramid.len() - 1;
+    // crate::separator_refinement::refine_two_way_node(
+    //     config,
+    //     separated_graph_pyramid,
+    //     0,
+    //     which_graph,
+    //     graph_is_compressed,
+    //     rng,
+    // )
 }
 
 fn m_level_node_bisection_l1<RNG>(
     config: &Config,
     graph: WeightedGraph,
     graph_is_compressed: bool,
+    n_i_parts: usize,
     rng: &mut RNG,
 ) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
 where
@@ -253,17 +308,18 @@ where
 {
     let n_vertices = graph.graph.n_vertices();
     let coarsen_to = (graph.graph.n_vertices() / 8).clamp(40, 100);
-    let total_weights = graph.vertex_weights.as_ref().unwrap().iter().sum();
+    let total_weights = graph.vertex_weights.iter().sum();
     let graph_pyramid =
         crate::coarsen::coarsen_graph(config, graph, coarsen_to, total_weights, rng);
     let n_i_parts = std::cmp::max(
         1,
         if n_vertices <= coarsen_to {
-            config.init_n_i_parts() / 2
+            n_i_parts / 2
         } else {
-            config.init_n_i_parts()
+            n_i_parts
         },
     );
+    println!("pyramid: {:?}", graph_pyramid);
     let separated_graph_pyramid = crate::initialize_partition::initialize_separator(
         config,
         graph_pyramid,
@@ -316,16 +372,16 @@ fn split_graph_order(
             x_adjacency: vec![0],
             adjacency_lists: vec![],
         },
-        vertex_weights: Some(vec![]),
-        edge_weights: Some(vec![]),
+        vertex_weights: vec![],
+        edge_weights: vec![],
     };
     let mut right_graph = WeightedGraph {
         graph: Graph {
             x_adjacency: vec![0],
             adjacency_lists: vec![],
         },
-        vertex_weights: Some(vec![]),
-        edge_weights: Some(vec![]),
+        vertex_weights: vec![],
+        edge_weights: vec![],
     };
     let mut graphs = [&mut left_graph, &mut right_graph];
 
@@ -354,11 +410,7 @@ fn split_graph_order(
             }
         }
 
-        my_graph
-            .vertex_weights
-            .as_mut()
-            .unwrap()
-            .push(graph.vertex_weights.as_ref().unwrap()[i]);
+        my_graph.vertex_weights.push(graph.vertex_weights[i]);
         split_labels[my_part].push(labels[i]);
         my_graph
             .graph
@@ -367,7 +419,7 @@ fn split_graph_order(
     }
 
     for my_part in 0..2 {
-        graphs[my_part].edge_weights = Some(vec![1; graphs[my_part].graph.n_edges()]);
+        graphs[my_part].edge_weights = vec![1; graphs[my_part].graph.n_edges()];
 
         for i in 0..graphs[my_part].graph.n_edges() {
             graphs[my_part].graph.adjacency_lists[i] =

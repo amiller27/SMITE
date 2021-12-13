@@ -1,5 +1,5 @@
 [package]
-name = "rustapp"
+name = "smite"
 version = "0.1.0"
 edition = "2018"
 
@@ -8,3 +8,6 @@ edition = "2018"
 [dependencies]
 rand = "*"
 rand_core = "*"
+
+[profile.dev]
+rpath = true

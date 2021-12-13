@@ -3,6 +3,16 @@ use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 use crate::refinement::{BoundaryInfo, WhereIdEd};
 
+const DEBUG_SEPARATOR: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_SEPARATOR {
+            println!($($x,)*);
+        }
+    };
+}
+
 pub fn construct_separator<RNG>(
     config: &Config,
     graph: &WeightedGraph,
@@ -14,10 +24,10 @@ pub fn construct_separator<RNG>(
 where
     RNG: RangeRng,
 {
-    println!("ENTERED CONSTRUCT_SEPARATOR");
-    println!("graph: {:?}", graph);
-    println!("{:?}", boundary_info);
-    println!("{:?}", where_id_ed);
+    debug!("ENTERED CONSTRUCT_SEPARATOR");
+    debug!("graph: {:?}", graph);
+    debug!("{:?}", boundary_info);
+    debug!("{:?}", where_id_ed);
     let mut _where = where_id_ed._where.clone();
 
     // put the nodes in the boundary into the separator

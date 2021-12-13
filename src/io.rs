@@ -31,8 +31,8 @@ where
             x_adjacency: vec![],
             adjacency_lists: vec![],
         },
-        edge_weights: None,
-        vertex_weights: Some(vec![]),
+        edge_weights: vec![],
+        vertex_weights: vec![],
     };
 
     lines.enumerate().for_each(|(_i, maybe_line)| {
@@ -46,8 +46,8 @@ where
                 .graph
                 .x_adjacency
                 .push(graph.graph.adjacency_lists.len());
-            for weight in numbers[..n_constraints as usize].iter() {
-                graph.vertex_weights.as_mut().unwrap().push(*weight as i32);
+            for &weight in numbers[..n_constraints as usize].iter() {
+                graph.vertex_weights.push(weight as i32);
             }
             graph
                 .graph

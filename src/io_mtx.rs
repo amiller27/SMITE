@@ -29,13 +29,9 @@ where
         panic!("Matrix isn't square");
     }
 
-    let mut graph = WeightedGraph {
-        graph: Graph {
-            x_adjacency: vec![0],
-            adjacency_lists: vec![],
-        },
-        edge_weights: None,
-        vertex_weights: None,
+    let mut graph = Graph {
+        x_adjacency: vec![0],
+        adjacency_lists: vec![],
     };
 
     let mut transpose_graph = vec![vec![]; rows];
@@ -55,18 +51,12 @@ where
             }
 
             while last_col != col {
-                graph
-                    .graph
-                    .adjacency_lists
-                    .extend(&transpose_graph[last_col]);
-                graph
-                    .graph
-                    .x_adjacency
-                    .push(graph.graph.adjacency_lists.len());
+                graph.adjacency_lists.extend(&transpose_graph[last_col]);
+                graph.x_adjacency.push(graph.adjacency_lists.len());
                 last_col += 1;
             }
 
-            graph.graph.adjacency_lists.push(row);
+            graph.adjacency_lists.push(row);
             transpose_graph[row].push(col);
         }
 
@@ -74,18 +64,16 @@ where
     });
 
     while last_col != cols {
-        graph
-            .graph
-            .adjacency_lists
-            .extend(&transpose_graph[last_col]);
-        graph
-            .graph
-            .x_adjacency
-            .push(graph.graph.adjacency_lists.len());
+        graph.adjacency_lists.extend(&transpose_graph[last_col]);
+        graph.x_adjacency.push(graph.adjacency_lists.len());
         last_col += 1;
     }
 
-    graph.vertex_weights = Some(vec![1; graph.graph.n_vertices()]);
-    graph.edge_weights = Some(vec![1; graph.graph.n_edges()]);
-    Ok(graph)
+    let n_vertices = graph.n_vertices();
+    let n_edges = graph.n_edges();
+    Ok(WeightedGraph {
+        graph: graph,
+        vertex_weights: vec![1; n_vertices],
+        edge_weights: vec![1; n_edges],
+    })
 }

@@ -74,13 +74,13 @@ where
             let i = boundary_info.boundary_ind[perm[ii]];
             queues[0].insert(
                 i,
-                (graph.vertex_weights.as_ref().unwrap()[i]
+                (graph.vertex_weights[i]
                     - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[1] as i32)
                     as f32,
             );
             queues[1].insert(
                 i,
-                (graph.vertex_weights.as_ref().unwrap()[i]
+                (graph.vertex_weights[i]
                     - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[0] as i32)
                     as f32,
             );
@@ -128,9 +128,9 @@ where
                 let u = [maybe_u[0].unwrap(), maybe_u[1].unwrap()];
 
                 let g = [
-                    graph.vertex_weights.as_ref().unwrap()[u[0]]
+                    graph.vertex_weights[u[0]]
                         - boundary_info.nr_info[u[0]].as_ref().unwrap().e_degrees[1] as i32,
-                    graph.vertex_weights.as_ref().unwrap()[u[1]]
+                    graph.vertex_weights[u[1]]
                         - boundary_info.nr_info[u[1]].as_ref().unwrap().e_degrees[0] as i32,
                 ];
 
@@ -142,8 +142,7 @@ where
                     (pass % 2) as usize
                 };
 
-                if boundary_info.partition_weights[to]
-                    + graph.vertex_weights.as_ref().unwrap()[u[to]]
+                if boundary_info.partition_weights[to] + graph.vertex_weights[u[to]]
                     > bad_max_partition_weight as i32
                 {
                     to = if to == 0 { 1 } else { 0 };
@@ -151,14 +150,12 @@ where
             } else if maybe_u[0].is_none() && maybe_u[1].is_none() {
                 break;
             } else if maybe_u[0].is_some()
-                && boundary_info.partition_weights[0]
-                    + graph.vertex_weights.as_ref().unwrap()[maybe_u[0].unwrap()]
+                && boundary_info.partition_weights[0] + graph.vertex_weights[maybe_u[0].unwrap()]
                     <= bad_max_partition_weight as i32
             {
                 to = 0;
             } else if maybe_u[1].is_some()
-                && boundary_info.partition_weights[1]
-                    + graph.vertex_weights.as_ref().unwrap()[maybe_u[1].unwrap()]
+                && boundary_info.partition_weights[1] + graph.vertex_weights[maybe_u[1].unwrap()]
                     <= bad_max_partition_weight as i32
             {
                 to = 1;
@@ -186,11 +183,10 @@ where
                 panic!();
             }
 
-            boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[high_gain]
+            boundary_info.partition_weights[2] -= graph.vertex_weights[high_gain]
                 - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
 
-            let new_diff = (boundary_info.partition_weights[to]
-                + graph.vertex_weights.as_ref().unwrap()[high_gain]
+            let new_diff = (boundary_info.partition_weights[to] + graph.vertex_weights[high_gain]
                 - (boundary_info.partition_weights[other]
                     - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32))
                 .abs();
@@ -205,16 +201,14 @@ where
                 || (n_swaps as i32 - min_cut_order > limit as i32
                     && boundary_info.partition_weights[2] as f32 > 1.10 * min_cut as f32)
             {
-                boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()
-                    [high_gain]
+                boundary_info.partition_weights[2] += graph.vertex_weights[high_gain]
                     - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
                 break; // no further improvement, break out
             }
 
             boundary_info.delete(high_gain);
 
-            boundary_info.partition_weights[to] +=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[to] += graph.vertex_weights[high_gain];
             boundary_info._where[high_gain] = to;
             moved[high_gain] = Moved::Some(n_swaps);
             debug_two!("SETTING MOVED {} = {:?}", high_gain, Moved::Some(n_swaps));
@@ -224,27 +218,23 @@ where
             for &k in graph.graph.neighbors(high_gain) {
                 if boundary_info._where[k] == 2 {
                     // for the in-separator vertices modify their edegree[to]
-                    let old_gain = graph.vertex_weights.as_ref().unwrap()[k]
+                    let old_gain = graph.vertex_weights[k]
                         - boundary_info.nr_info[k].as_ref().unwrap().e_degrees[to] as i32;
                     boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] +=
-                        graph.vertex_weights.as_ref().unwrap()[high_gain] as usize; // eek
+                        graph.vertex_weights[high_gain] as usize; // eek
 
                     debug_two!(
                         "----------- Branch 1, Moved {:?}, other {}, k {}, new {}",
                         moved[k],
                         other,
                         k,
-                        (old_gain - graph.vertex_weights.as_ref().unwrap()[high_gain]) as f32
+                        (old_gain - graph.vertex_weights[high_gain]) as f32
                     );
                     match moved[k] {
-                        Moved::None => queues[other].update(
-                            k,
-                            (old_gain - graph.vertex_weights.as_ref().unwrap()[high_gain]) as f32,
-                        ),
-                        Moved::Neg(i) if i == other => queues[other].update(
-                            k,
-                            (old_gain - graph.vertex_weights.as_ref().unwrap()[high_gain]) as f32,
-                        ),
+                        Moved::None => queues[other]
+                            .update(k, (old_gain - graph.vertex_weights[high_gain]) as f32),
+                        Moved::Neg(i) if i == other => queues[other]
+                            .update(k, (old_gain - graph.vertex_weights[high_gain]) as f32),
                         _ => {}
                     }
                 } else if boundary_info._where[k] == other {
@@ -254,8 +244,7 @@ where
 
                     m_ind.push(k); // keep track for rollback
                     boundary_info._where[k] = 2;
-                    boundary_info.partition_weights[other] -=
-                        graph.vertex_weights.as_ref().unwrap()[k];
+                    boundary_info.partition_weights[other] -= graph.vertex_weights[k];
 
                     debug_two!("--------- Branch 2");
                     debug_two!("{:?}", boundary_info._where);
@@ -263,30 +252,26 @@ where
                     for &kk in graph.graph.neighbors(k) {
                         if boundary_info._where[kk] != 2 {
                             e_degrees[boundary_info._where[kk]] +=
-                                graph.vertex_weights.as_ref().unwrap()[kk] as usize;
+                                graph.vertex_weights[kk] as usize;
                         } else {
-                            let old_gain = graph.vertex_weights.as_ref().unwrap()[kk]
+                            let old_gain = graph.vertex_weights[kk]
                                 - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
                                     as i32;
                             boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] -=
-                                graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                                graph.vertex_weights[k] as usize;
                             debug_two!(
                                 "Moved {:?}, to {}, k {}, kk {}, new {}",
                                 moved[kk],
                                 to,
                                 k,
                                 kk,
-                                (old_gain + graph.vertex_weights.as_ref().unwrap()[k]) as f32
+                                (old_gain + graph.vertex_weights[k]) as f32
                             );
                             match moved[kk] {
-                                Moved::None => queues[to].update(
-                                    kk,
-                                    (old_gain + graph.vertex_weights.as_ref().unwrap()[k]) as f32,
-                                ),
-                                Moved::Neg(i) if i == to => queues[to].update(
-                                    kk,
-                                    (old_gain + graph.vertex_weights.as_ref().unwrap()[k]) as f32,
-                                ),
+                                Moved::None => queues[to]
+                                    .update(kk, (old_gain + graph.vertex_weights[k]) as f32),
+                                Moved::Neg(i) if i == to => queues[to]
+                                    .update(kk, (old_gain + graph.vertex_weights[k]) as f32),
                                 _ => {}
                             }
                         }
@@ -300,8 +285,7 @@ where
                     if matches!(moved[k], Moved::None) {
                         queues[to].insert(
                             k,
-                            (graph.vertex_weights.as_ref().unwrap()[k] - e_degrees[other] as i32)
-                                as f32,
+                            (graph.vertex_weights[k] - e_degrees[other] as i32) as f32,
                         );
                         moved[k] = Moved::Neg(to);
                     }
@@ -323,9 +307,8 @@ where
             let to = boundary_info._where[high_gain];
             let other = if to == 0 { 1 } else { 0 };
 
-            boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()[high_gain];
-            boundary_info.partition_weights[to] -=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[2] += graph.vertex_weights[high_gain];
+            boundary_info.partition_weights[to] -= graph.vertex_weights[high_gain];
 
             boundary_info._where[high_gain] = 2;
 
@@ -336,10 +319,9 @@ where
             for &k in graph.graph.neighbors(high_gain) {
                 if boundary_info._where[k] == 2 {
                     boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] -=
-                        graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
+                        graph.vertex_weights[high_gain] as usize;
                 } else {
-                    e_degrees[boundary_info._where[k]] +=
-                        graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                    e_degrees[boundary_info._where[k]] += graph.vertex_weights[k] as usize;
                 }
             }
             boundary_info.nr_info[high_gain] = Some(crate::separator_refinement::NrInfo {
@@ -349,15 +331,15 @@ where
             // push nodes out of the separator
             for &k in m_ind {
                 boundary_info._where[k] = other;
-                boundary_info.partition_weights[other] += graph.vertex_weights.as_ref().unwrap()[k];
-                boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[k];
+                boundary_info.partition_weights[other] += graph.vertex_weights[k];
+                boundary_info.partition_weights[2] -= graph.vertex_weights[k];
 
                 boundary_info.delete(k);
 
                 for &kk in graph.graph.neighbors(k) {
                     if boundary_info._where[kk] == 2 {
                         boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] +=
-                            graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                            graph.vertex_weights[k] as usize;
                     }
                 }
             }
@@ -425,7 +407,7 @@ where
             let i = boundary_info.boundary_ind[perm[ii]];
             queue.insert(
                 i,
-                (graph.vertex_weights.as_ref().unwrap()[i]
+                (graph.vertex_weights[i]
                     - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[other] as i32)
                     as f32,
             );
@@ -481,22 +463,20 @@ where
             debug_one!(
                 "pwgt: {}, vwgt: {}, bmpw: {}",
                 boundary_info.partition_weights[to],
-                graph.vertex_weights.as_ref().unwrap()[high_gain],
+                graph.vertex_weights[high_gain],
                 bad_max_partition_weight
             );
-            if boundary_info.partition_weights[to]
-                + graph.vertex_weights.as_ref().unwrap()[high_gain]
+            if boundary_info.partition_weights[to] + graph.vertex_weights[high_gain]
                 > bad_max_partition_weight as i32
             {
                 debug_one!("Break 469");
                 break; // no point going any further. balance will be bad
             }
 
-            boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[high_gain]
+            boundary_info.partition_weights[2] -= graph.vertex_weights[high_gain]
                 - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
 
-            let new_diff = (boundary_info.partition_weights[to]
-                + graph.vertex_weights.as_ref().unwrap()[high_gain]
+            let new_diff = (boundary_info.partition_weights[to] + graph.vertex_weights[high_gain]
                 - (boundary_info.partition_weights[other]
                     - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32))
                 .abs();
@@ -521,8 +501,7 @@ where
                     > limit as i32
                     && boundary_info.partition_weights[2] as f32 > 1.10 * min_cut as f32)
             {
-                boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()
-                    [high_gain]
+                boundary_info.partition_weights[2] += graph.vertex_weights[high_gain]
                     - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
                 break; // no further improvement, break out
             }
@@ -530,8 +509,7 @@ where
             debug_one!("high_gain: {}", high_gain);
             boundary_info.delete(high_gain);
 
-            boundary_info.partition_weights[to] +=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[to] += graph.vertex_weights[high_gain];
             boundary_info._where[high_gain] = to;
             swaps.push(high_gain);
 
@@ -542,7 +520,7 @@ where
                     debug_one!("Branch 1");
                     // for the in-separator vertices modify their edegree[to]
                     boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] +=
-                        graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
+                        graph.vertex_weights[high_gain] as usize;
                 } else if boundary_info._where[k] == other {
                     debug_one!("Branch 2");
                     // this vertex is pulled into the separator
@@ -551,22 +529,21 @@ where
 
                     m_ind.push(k); // keep track for rollback
                     boundary_info._where[k] = 2;
-                    boundary_info.partition_weights[other] -=
-                        graph.vertex_weights.as_ref().unwrap()[k];
+                    boundary_info.partition_weights[other] -= graph.vertex_weights[k];
 
                     let mut e_degrees = [0, 0];
                     for &kk in graph.graph.neighbors(k) {
                         if boundary_info._where[kk] != 2 {
                             e_degrees[boundary_info._where[kk]] +=
-                                graph.vertex_weights.as_ref().unwrap()[kk] as usize;
+                                graph.vertex_weights[kk] as usize;
                         } else {
                             boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] -=
-                                graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                                graph.vertex_weights[k] as usize;
 
                             // since the moves are one-sided this vertex has not been moved yet
                             queue.update(
                                 kk,
-                                (graph.vertex_weights.as_ref().unwrap()[kk]
+                                (graph.vertex_weights[kk]
                                     - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
                                         as i32) as f32,
                             );
@@ -579,8 +556,7 @@ where
                     // insert the new vertex into the priority queue.  Safe due to one-sided moves
                     queue.insert(
                         k,
-                        (graph.vertex_weights.as_ref().unwrap()[k] - e_degrees[other] as i32)
-                            as f32,
+                        (graph.vertex_weights[k] - e_degrees[other] as i32) as f32,
                     );
                 }
             }
@@ -600,9 +576,8 @@ where
                     swaps.len()
                 })
         {
-            boundary_info.partition_weights[2] += graph.vertex_weights.as_ref().unwrap()[high_gain];
-            boundary_info.partition_weights[to] -=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[2] += graph.vertex_weights[high_gain];
+            boundary_info.partition_weights[to] -= graph.vertex_weights[high_gain];
 
             boundary_info._where[high_gain] = 2;
 
@@ -613,10 +588,9 @@ where
             for &k in graph.graph.neighbors(high_gain) {
                 if boundary_info._where[k] == 2 {
                     boundary_info.nr_info[k].as_mut().unwrap().e_degrees[to] -=
-                        graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
+                        graph.vertex_weights[high_gain] as usize;
                 } else {
-                    e_degrees[boundary_info._where[k]] +=
-                        graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                    e_degrees[boundary_info._where[k]] += graph.vertex_weights[k] as usize;
                 }
             }
             boundary_info.nr_info[high_gain] = Some(crate::separator_refinement::NrInfo {
@@ -626,15 +600,15 @@ where
             // push nodes out of the separator
             for &k in m_ind {
                 boundary_info._where[k] = other;
-                boundary_info.partition_weights[other] += graph.vertex_weights.as_ref().unwrap()[k];
-                boundary_info.partition_weights[2] -= graph.vertex_weights.as_ref().unwrap()[k];
+                boundary_info.partition_weights[other] += graph.vertex_weights[k];
+                boundary_info.partition_weights[2] -= graph.vertex_weights[k];
 
                 boundary_info.delete(k);
 
                 for &kk in graph.graph.neighbors(k) {
                     if boundary_info._where[kk] == 2 {
                         boundary_info.nr_info[kk].as_mut().unwrap().e_degrees[other] +=
-                            graph.vertex_weights.as_ref().unwrap()[k] as usize;
+                            graph.vertex_weights[k] as usize;
                     }
                 }
             }
@@ -699,7 +673,7 @@ pub fn two_way_node_balance(
     {
         queue.insert(
             i,
-            (graph.vertex_weights.as_ref().unwrap()[i]
+            (graph.vertex_weights[i]
                 - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[other] as i32)
                 as f32,
         );
@@ -719,7 +693,7 @@ pub fn two_way_node_balance(
 
         moved[high_gain] = true;
 
-        let gain = graph.vertex_weights.as_ref().unwrap()[high_gain]
+        let gain = graph.vertex_weights[high_gain]
             - boundary_info.nr_info[high_gain].as_ref().unwrap().e_degrees[other] as i32;
 
         let bad_max_partition_weight = (mult
@@ -737,7 +711,7 @@ pub fn two_way_node_balance(
         }
 
         // skip this vertex if it will violate balance on the other side
-        if boundary_info.partition_weights[to] + graph.vertex_weights.as_ref().unwrap()[high_gain]
+        if boundary_info.partition_weights[to] + graph.vertex_weights[high_gain]
             > bad_max_partition_weight
         {
             continue;
@@ -747,7 +721,7 @@ pub fn two_way_node_balance(
 
         boundary_info.delete(high_gain);
 
-        boundary_info.partition_weights[to] += graph.vertex_weights.as_ref().unwrap()[high_gain];
+        boundary_info.partition_weights[to] += graph.vertex_weights[high_gain];
         boundary_info._where[high_gain] = to;
 
         // update the degrees of the affected nodes
@@ -755,33 +729,28 @@ pub fn two_way_node_balance(
             if boundary_info._where[*k] == 2 {
                 // for the in-separator vertices modify their edegree[to]
                 boundary_info.nr_info[*k].as_mut().unwrap().e_degrees[to] +=
-                    graph.vertex_weights.as_ref().unwrap()[high_gain] as usize;
+                    graph.vertex_weights[high_gain] as usize;
             } else if boundary_info._where[*k] == other {
                 // this vertex is pulled into the separator
                 boundary_info.boundary_ind.push(*k);
                 boundary_info.boundary_ptr[*k] = Some(boundary_info.boundary_ind.len() - 1);
 
                 boundary_info._where[*k] = 2;
-                boundary_info.partition_weights[other] -=
-                    graph.vertex_weights.as_ref().unwrap()[*k];
+                boundary_info.partition_weights[other] -= graph.vertex_weights[*k];
 
                 let mut e_degrees: [usize; 2] = [0, 0];
                 for kk in graph.graph.neighbors(*k) {
                     if boundary_info._where[*kk] != 2 {
-                        e_degrees[boundary_info._where[*kk]] +=
-                            graph.vertex_weights.as_ref().unwrap()[*kk] as usize;
+                        e_degrees[boundary_info._where[*kk]] += graph.vertex_weights[*kk] as usize;
                     } else {
-                        let old_gain = graph.vertex_weights.as_ref().unwrap()[*kk]
+                        let old_gain = graph.vertex_weights[*kk]
                             - boundary_info.nr_info[*kk].as_ref().unwrap().e_degrees[other] as i32;
 
                         boundary_info.nr_info[*kk].as_mut().unwrap().e_degrees[other] -=
-                            graph.vertex_weights.as_ref().unwrap()[*k] as usize;
+                            graph.vertex_weights[*k] as usize;
 
                         if !moved[*kk] {
-                            queue.update(
-                                *kk,
-                                (old_gain + graph.vertex_weights.as_ref().unwrap()[*k]) as f32,
-                            );
+                            queue.update(*kk, (old_gain + graph.vertex_weights[*k]) as f32);
                         }
                     }
                 }
@@ -790,7 +759,7 @@ pub fn two_way_node_balance(
                 // insert the new vertex into the priority queue
                 queue.insert(
                     *k,
-                    (graph.vertex_weights.as_ref().unwrap()[*k] - e_degrees[other] as i32) as f32,
+                    (graph.vertex_weights[*k] - e_degrees[other] as i32) as f32,
                 );
             }
         }

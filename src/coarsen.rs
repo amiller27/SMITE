@@ -1,6 +1,7 @@
 use crate::config::{CoarseningType, Config};
 use crate::graph::{Graph, WeightedGraph};
 use crate::random::RangeRng;
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub struct CoarseGraphResult {
@@ -34,11 +35,9 @@ where
 {
     let equal_edge_weights = graph
         .edge_weights
-        .as_ref()
-        .unwrap()
         .iter()
         .skip(1)
-        .all(|w| *w == graph.edge_weights.as_ref().unwrap()[0]);
+        .all(|w| *w == graph.edge_weights[0]);
 
     let max_coarsest_vertex_weight = (1.5 * total_vertex_weights as f32 / coarsen_to as f32) as i32;
 
@@ -95,8 +94,7 @@ fn match_random<RNG>(
 where
     RNG: RangeRng,
 {
-    // WHY IS THIS UNUSED
-    let _tperm = crate::random::permutation(
+    let tperm = crate::random::permutation(
         graph.graph.n_vertices(),
         graph.graph.n_vertices() / 8,
         crate::random::Mode::Identity,
@@ -117,7 +115,7 @@ where
         .collect();
 
     // Again, why is tperm unused?
-    let (_tperm, perm) = crate::bucketsort::bucket_sort_keys_increasing(average_degree, &degrees);
+    let perm = crate::bucketsort::bucket_sort_keys_increasing(average_degree, &degrees, tperm);
 
     let mut matches = vec![Match::Unmatched; graph.graph.n_vertices()];
 
@@ -133,7 +131,7 @@ where
             let mut max_idx = Match::Matched(i);
 
             // ncon should always be 1
-            if graph.vertex_weights.as_ref().unwrap()[i] < max_coarsest_vertex_weight {
+            if graph.vertex_weights[i] < max_coarsest_vertex_weight {
                 if graph.graph.degree(i) == 0 {
                     last_unmatched = std::cmp::max(pi, last_unmatched) + 1;
 
@@ -150,20 +148,18 @@ where
                         }
                     }
                 } else {
-                    for k in graph.graph.neighbors(i) {
-                        if matches!(matches[*k], Match::Unmatched)
-                            && graph.vertex_weights.as_ref().unwrap()[i]
-                                + graph.vertex_weights.as_ref().unwrap()[*k]
+                    for &k in graph.graph.neighbors(i) {
+                        if matches!(matches[k], Match::Unmatched)
+                            && graph.vertex_weights[i] + graph.vertex_weights[k]
                                 <= max_coarsest_vertex_weight
                         {
-                            max_idx = Match::Matched(*k);
+                            max_idx = Match::Matched(k);
                             break;
                         }
                     }
 
                     if matches!(max_idx, Match::Matched(idx) if idx == i)
-                        && 2 * graph.vertex_weights.as_ref().unwrap()[i]
-                            < max_coarsest_vertex_weight
+                        && 2 * graph.vertex_weights[i] < max_coarsest_vertex_weight
                     {
                         n_unmatched += 1;
                         max_idx = Match::Unmatched;
@@ -306,7 +302,7 @@ fn match_two_hop_any(
     max_degree: usize,
     coarsening_map: &mut Vec<usize>,
 ) -> (usize, usize) {
-    let mut col_ptr = vec![0; graph.graph.n_vertices()];
+    let mut col_ptr = vec![0; graph.graph.n_vertices() + 1];
     for i in 0..graph.graph.n_vertices() {
         if matches!(matches[i], Match::Unmatched) && graph.graph.degree(i) < max_degree {
             for neighbor in graph.graph.neighbors(i) {
@@ -486,10 +482,10 @@ fn create_coarse_graph(
         }
 
         // ncon is 1
-        coarse_vertex_weights.push(graph.vertex_weights.as_ref().unwrap()[v]);
+        coarse_vertex_weights.push(graph.vertex_weights[v]);
 
         if v != u {
-            *coarse_vertex_weights.last_mut().unwrap() += graph.vertex_weights.as_ref().unwrap()[u];
+            *coarse_vertex_weights.last_mut().unwrap() += graph.vertex_weights[u];
         }
 
         // take care of the edges
@@ -505,18 +501,36 @@ fn create_coarse_graph(
                 let k = coarsening_map[neighbor];
 
                 let mut kk = k & mask;
-                while hash_table[kk] != -1 && coarse_adjacency[hash_table[kk] as usize] != k {
+                while hash_table[kk] != -1
+                    && coarse_adjacency[usize::try_from(hash_table[kk]).unwrap()
+                        + coarse_x_adjacency.last().unwrap()]
+                        != k
+                {
                     kk = (kk + 1) & mask;
                 }
+
+                debug!(
+                    "hash_table: {:?}",
+                    hash_table
+                        .iter()
+                        .enumerate()
+                        .filter(|(_i, &e)| e >= 0)
+                        .collect::<Vec<(usize, &i32)>>()
+                );
+                debug!("{:?}", coarse_adjacency);
 
                 let m = hash_table[kk];
                 if m == -1 {
                     coarse_adjacency.push(k);
-                    coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
+                    coarse_adjacency_weights.push(graph.edge_weights[j]);
                     hash_table[kk] =
-                        (coarse_adjacency.len() - coarse_x_adjacency.last().unwrap()) as i32 - 1;
+                        i32::try_from(coarse_adjacency.len() - coarse_x_adjacency.last().unwrap())
+                            .unwrap()
+                            - 1;
                 } else {
-                    coarse_adjacency_weights[m as usize] += graph.edge_weights.as_ref().unwrap()[j];
+                    coarse_adjacency_weights
+                        [usize::try_from(m).unwrap() + coarse_x_adjacency.last().unwrap()] +=
+                        graph.edge_weights[j];
                 }
             }
 
@@ -537,20 +551,27 @@ fn create_coarse_graph(
                     let k = coarsening_map[neighbor];
 
                     let mut kk = k & mask;
-                    while hash_table[kk] != -1 && coarse_adjacency[hash_table[kk] as usize] != k {
+                    while hash_table[kk] != -1
+                        && coarse_adjacency[usize::try_from(hash_table[kk]).unwrap()
+                            + coarse_x_adjacency.last().unwrap()]
+                            != k
+                    {
                         kk = (kk + 1) & mask;
                     }
 
                     let m = hash_table[kk];
                     if m == -1 {
                         coarse_adjacency.push(k);
-                        coarse_adjacency_weights.push(graph.edge_weights.as_ref().unwrap()[j]);
-                        hash_table[kk] =
-                            (coarse_adjacency.len() - coarse_x_adjacency.last().unwrap()) as i32
-                                - 1;
+                        coarse_adjacency_weights.push(graph.edge_weights[j]);
+                        hash_table[kk] = i32::try_from(
+                            coarse_adjacency.len() - coarse_x_adjacency.last().unwrap(),
+                        )
+                        .unwrap()
+                            - 1;
                     } else {
-                        coarse_adjacency_weights[m as usize] +=
-                            graph.edge_weights.as_ref().unwrap()[j];
+                        coarse_adjacency_weights
+                            [usize::try_from(m).unwrap() + coarse_x_adjacency.last().unwrap()] +=
+                            graph.edge_weights[j];
                     }
                 }
             }
@@ -560,16 +581,21 @@ fn create_coarse_graph(
             for &k in &coarse_adjacency[*coarse_x_adjacency.last().unwrap()..] {
                 let mut kk = k & mask;
                 debug!("k: {}", k);
-                while coarse_adjacency
-                    [hash_table[kk] as usize + *coarse_x_adjacency.last().unwrap()]
+                while coarse_adjacency[usize::try_from(
+                    hash_table[kk] + i32::try_from(*coarse_x_adjacency.last().unwrap()).unwrap(),
+                )
+                .unwrap()]
                     != k
                 {
                     debug!(
                         "kk: {}, htable: {}, cadj: {}",
                         kk,
                         hash_table[kk],
-                        coarse_adjacency
-                            [hash_table[kk] as usize + *coarse_x_adjacency.last().unwrap()]
+                        coarse_adjacency[usize::try_from(
+                            hash_table[kk]
+                                + i32::try_from(*coarse_x_adjacency.last().unwrap()).unwrap()
+                        )
+                        .unwrap()]
                     );
                     kk = (kk + 1) & mask;
                 }
@@ -657,8 +683,8 @@ fn create_coarse_graph(
                 x_adjacency: coarse_x_adjacency,
                 adjacency_lists: coarse_adjacency,
             },
-            vertex_weights: Some(coarse_vertex_weights),
-            edge_weights: Some(coarse_adjacency_weights),
+            vertex_weights: coarse_vertex_weights,
+            edge_weights: coarse_adjacency_weights,
         },
         total_vertex_weights: total_vertex_weights,
         coarsening_map: coarsening_map,

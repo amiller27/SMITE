@@ -16,25 +16,27 @@ mod random;
 mod refinement;
 mod separator;
 mod separator_refinement;
+mod metis_ffi;
+mod tests;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //let graph = crate::io::read_graph("/home/aaron/metis-cpp/METIS/graphs/test.mgraph")?;
+    let mat_name = "494_bus";
 
-    let mat_name = "bcsstk01";
     let graph = crate::io_mtx::read_graph(format!(
         "/home/aaron/matrices/{}/{}.mtx",
         mat_name, mat_name
     ))?;
-    println!("{:?}", graph.graph.x_adjacency);
-    println!("{:?}", graph.graph.adjacency_lists);
-    for node in 0..graph.graph.n_vertices() {
-        println!("{}: {:?}", node, graph.graph.neighbors(node));
+
+    if graph.graph.n_vertices() >= 5000 {
+        // not implemented yet
+        return Ok(())
     }
 
     let mut rng =
         crate::random::MockRng::from_trace(format!("/home/aaron/rng_traces/{}.txt", mat_name))?;
 
     let result = crate::ometis::node_nd(graph.graph, graph.vertex_weights, &mut rng)?;
-    println!("RESULT: {:?}", result);
+    println!("SMITE RESULT: {:?}", result);
+
     Ok(())
 }

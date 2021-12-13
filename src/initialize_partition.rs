@@ -67,7 +67,7 @@ where
         _ => panic!("WTF"),
     };
 
-    graph_pyramid[..graph_pyramid.len()-1]
+    graph_pyramid[..graph_pyramid.len() - 1]
         .iter()
         .map(|pyramid_level| GraphPyramidLevel {
             graph: pyramid_level.graph.clone(),
@@ -139,11 +139,6 @@ where
         * total_vertex_weights as f32
         * n_t_partition_weights[1]) as i32;
 
-    println!(
-        "onemaxpwgt: {}, oneminpwgt: {}",
-        one_max_partition_weight, one_min_partition_weight
-    );
-
     for i_n_bfs in 0..n_i_parts {
         where_id_ed._where = vec![1; graph.graph.n_vertices()];
         let mut touched = vec![false; graph.graph.n_vertices()];
@@ -184,7 +179,7 @@ where
             first += 1;
 
             if boundary_info.partition_weights[0] > 0
-                && boundary_info.partition_weights[1] - graph.vertex_weights.as_ref().unwrap()[i]
+                && boundary_info.partition_weights[1] - graph.vertex_weights[i]
                     < one_min_partition_weight
             {
                 drain = true;
@@ -192,8 +187,8 @@ where
             }
 
             where_id_ed._where[i] = 0;
-            boundary_info.partition_weights[0] += graph.vertex_weights.as_ref().unwrap()[i];
-            boundary_info.partition_weights[1] -= graph.vertex_weights.as_ref().unwrap()[i];
+            boundary_info.partition_weights[0] += graph.vertex_weights[i];
+            boundary_info.partition_weights[1] -= graph.vertex_weights[i];
 
             if boundary_info.partition_weights[1] <= one_max_partition_weight {
                 break;

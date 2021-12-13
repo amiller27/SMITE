@@ -72,7 +72,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustapp"
+name = "smite"
 version = "0.1.0"
 dependencies = [
  "rand",

@@ -1,5 +1,15 @@
 use crate::config::{Index, Real};
 
+const DEBUG_COMPRESS: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_COMPRESS {
+            println!($($x,)*);
+        }
+    };
+}
+
 #[derive(Clone, Debug)]
 pub struct Graph {
     pub x_adjacency: Vec<usize>,
@@ -34,8 +44,8 @@ impl Graph {
 #[derive(Clone, Debug)]
 pub struct WeightedGraph {
     pub graph: Graph,
-    pub vertex_weights: Option<Vec<Index>>,
-    pub edge_weights: Option<Vec<Index>>,
+    pub vertex_weights: Vec<Index>,
+    pub edge_weights: Vec<Index>,
 }
 
 impl WeightedGraph {
@@ -43,8 +53,8 @@ impl WeightedGraph {
         let n_vertices = graph.n_vertices();
         WeightedGraph {
             graph: graph,
-            vertex_weights: Some(vec![1; n_vertices]),
-            edge_weights: None,
+            vertex_weights: vec![1; n_vertices],
+            edge_weights: vec![],
         }
     }
 
@@ -56,7 +66,7 @@ impl WeightedGraph {
         let end = self.graph.x_adjacency[vertex + 1];
         self.graph.adjacency_lists[start..end]
             .iter()
-            .zip(self.edge_weights.as_ref().unwrap()[start..end].iter())
+            .zip(self.edge_weights[start..end].iter())
     }
 }
 
@@ -108,7 +118,7 @@ impl Ord for KeyAndValue {
 }
 
 impl PartialEq for KeyAndValue {
-    fn eq(&self, other: &KeyAndValue)  -> bool {
+    fn eq(&self, other: &KeyAndValue) -> bool {
         return self.key == other.key;
     }
 }
@@ -120,7 +130,7 @@ pub fn sort(mut v: Vec<KeyAndValue>) -> Vec<KeyAndValue> {
 
 pub fn compress_graph(
     graph: &Graph,
-    vertex_weights: &Option<Vec<Index>>,
+    vertex_weights: &Vec<Index>,
 ) -> Option<(WeightedGraph, Vec<usize>, Vec<usize>, Vec<usize>)> {
     // Each key is the sum of the vertex indices that the vertex is adjacent to
     let keys_unsorted = (0..graph.n_vertices())
@@ -130,9 +140,9 @@ pub fn compress_graph(
         })
         .collect::<Vec<KeyAndValue>>();
 
-    println!("Keys unsorted: {:?}", keys_unsorted);
+    debug!("Keys unsorted: {:?}", keys_unsorted);
     let keys = sort(keys_unsorted);
-    println!("Keys: {:?}", keys);
+    debug!("Keys: {:?}", keys);
 
     let mut mark = vec![Option::<usize>::None; graph.n_vertices()];
 
@@ -211,10 +221,7 @@ pub fn compress_graph(
         for j in compressed_to_uncompressed_ptr[i]..compressed_to_uncompressed_ptr[i + 1] {
             let vertex = compressed_to_uncompressed[j];
 
-            compressed_vertex_weights[i] += match vertex_weights {
-                None => 1,
-                Some(weights) => weights[i],
-            };
+            compressed_vertex_weights[i] += vertex_weights[i];
 
             for neighbor in graph.neighbors(vertex) {
                 let compressed_vertex = uncompressed_to_compressed[*neighbor].unwrap();
@@ -235,8 +242,8 @@ pub fn compress_graph(
                 x_adjacency: compressed_x_adjacency,
                 adjacency_lists: compressed_adjacency,
             },
-            vertex_weights: Some(compressed_vertex_weights),
-            edge_weights: Some(vec![1; n_edges]),
+            vertex_weights: compressed_vertex_weights,
+            edge_weights: vec![1; n_edges],
         },
         compressed_to_uncompressed_ptr,
         compressed_to_uncompressed,

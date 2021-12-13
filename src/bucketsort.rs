@@ -1,33 +1,35 @@
-pub fn make_csr(max: usize, counts: &mut Vec<usize>) {
-    for i in 1..max + 1 {
+pub fn make_csr(n: usize, counts: &mut Vec<usize>) {
+    for i in 1..n {
         counts[i] += counts[i - 1];
     }
 
-    for i in (1..max + 2).rev() {
+    for i in (1..n + 1).rev() {
         counts[i] = counts[i - 1];
     }
 
     counts[0] = 0;
 }
 
-pub fn shift_csr(max: usize, counts: &mut Vec<usize>) {
-    for i in (1..max + 1).rev() {
+pub fn shift_csr(n: usize, counts: &mut Vec<usize>) {
+    for i in (1..n + 1).rev() {
         counts[i] = counts[i - 1];
     }
     counts[0] = 0;
 }
 
-pub fn bucket_sort_keys_increasing(max: usize, keys: &Vec<usize>) -> (Vec<usize>, Vec<usize>) {
+pub fn bucket_sort_keys_increasing(
+    max: usize,
+    keys: &Vec<usize>,
+    tperm: Vec<usize>,
+) -> Vec<usize> {
     let mut counts = vec![0; max + 2];
 
-    for key in keys {
-        counts[*key] += 1;
+    for &key in keys {
+        counts[key] += 1;
     }
 
-    make_csr(max, &mut counts);
+    make_csr(max + 1, &mut counts);
 
-    // WTF
-    let tperm = vec![0; keys.len()];
     let mut perm = vec![0; keys.len()];
 
     for i in 0..keys.len() {
@@ -35,5 +37,5 @@ pub fn bucket_sort_keys_increasing(max: usize, keys: &Vec<usize>) -> (Vec<usize>
         counts[keys[tperm[i]]] += 1;
     }
 
-    (tperm, perm)
+    perm
 }

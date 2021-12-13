@@ -14,7 +14,6 @@ macro_rules! debug {
     };
 }
 
-
 pub fn two_way_refine<RNG>(
     config: &Config,
     graph: &WeightedGraph,
@@ -132,10 +131,8 @@ where
 
             new_cut -= where_id_ed.ed[high_gain] - where_id_ed.id[high_gain];
 
-            boundary_info.partition_weights[to] +=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
-            boundary_info.partition_weights[from] -=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[to] += graph.vertex_weights[high_gain];
+            boundary_info.partition_weights[from] -= graph.vertex_weights[high_gain];
 
             let new_diff = (total_partition_weights[0] - boundary_info.partition_weights[0]).abs();
             if (new_cut < min_cut && new_diff <= orig_diff + average_vertex_weight)
@@ -150,10 +147,8 @@ where
                 // Never read:
                 // new_cut += where_id_ed.ed[high_gain] - where_id_ed.id[high_gain];
 
-                boundary_info.partition_weights[to] -=
-                    graph.vertex_weights.as_ref().unwrap()[high_gain];
-                boundary_info.partition_weights[from] +=
-                    graph.vertex_weights.as_ref().unwrap()[high_gain];
+                boundary_info.partition_weights[to] -= graph.vertex_weights[high_gain];
+                boundary_info.partition_weights[from] += graph.vertex_weights[high_gain];
                 break;
             }
 
@@ -242,10 +237,8 @@ where
                 boundary_info.insert(high_gain);
             }
 
-            boundary_info.partition_weights[to] +=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
-            boundary_info.partition_weights[from] -=
-                graph.vertex_weights.as_ref().unwrap()[high_gain];
+            boundary_info.partition_weights[to] += graph.vertex_weights[high_gain];
+            boundary_info.partition_weights[from] -= graph.vertex_weights[high_gain];
 
             for (&k, &adjacency_weight) in graph.weighted_neighbors(high_gain) {
                 let k_weight = if to == where_id_ed._where[k] {

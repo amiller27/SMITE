@@ -50,8 +50,7 @@ pub fn compute_two_way_partitioning_params(
 
     // compute partition_weights
     for i in 0..graph.graph.n_vertices() {
-        boundary_info.partition_weights[where_id_ed._where[i]] +=
-            graph.vertex_weights.as_ref().unwrap()[i];
+        boundary_info.partition_weights[where_id_ed._where[i]] += graph.vertex_weights[i];
     }
 
     //compute the required info for refinement
@@ -63,9 +62,9 @@ pub fn compute_two_way_partitioning_params(
 
         for j in graph.graph.x_adjacency[i]..graph.graph.x_adjacency[i + 1] {
             if me == where_id_ed._where[graph.graph.adjacency_lists[j]] {
-                tid += graph.edge_weights.as_ref().unwrap()[j];
+                tid += graph.edge_weights[j];
             } else {
-                ted += graph.edge_weights.as_ref().unwrap()[j];
+                ted += graph.edge_weights[j];
             }
         }
 

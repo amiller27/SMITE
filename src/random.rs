@@ -6,6 +6,16 @@ extern crate core;
 extern crate rand;
 extern crate rand_core;
 
+const DEBUG_RANDOM: bool = false;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_RANDOM {
+            println!($($x,)*);
+        }
+    };
+}
+
 pub trait RangeRng {
     fn gen_range(&mut self, r: core::ops::Range<usize>) -> usize;
 }
@@ -34,7 +44,7 @@ impl MockRng {
     fn next_u64(&mut self) -> u64 {
         let curr_i = self.i;
         self.i += 1;
-        println!("next_u64: {}", self.results[curr_i]);
+        debug!("next_u64: {}", self.results[curr_i]);
         self.results[curr_i]
     }
 }
@@ -46,34 +56,9 @@ impl RangeRng for MockRng {
         }
 
         let maybe: usize = self.next_u64().try_into().unwrap();
-        // println!(
-        //     "GENERATING RANGE start {}, end {}, result {}, final {}",
-        //     r.start, r.end, maybe, maybe % r.end
-        // );
         maybe % r.end
     }
 }
-
-// impl rand::RngCore for MockRng {
-//     fn next_u32(&mut self) -> u32 {
-//         self.next_u64() as u32
-//     }
-//
-//     fn next_u64(&mut self) -> u64 {
-//         let curr_i = self.i;
-//         self.i += 1;
-//         println!("next_u64: {}", self.results[curr_i]);
-//         self.results[curr_i]
-//     }
-//
-//     fn fill_bytes(&mut self, dest: &mut [u8]) {
-//         rand_core::impls::fill_bytes_via_next(self, dest)
-//     }
-//
-//     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-//         Ok(self.fill_bytes(dest))
-//     }
-// }
 
 impl<T: rand::Rng> RangeRng for T {
     fn gen_range(&mut self, r: core::ops::Range<usize>) -> usize {
@@ -100,9 +85,6 @@ where
         }
     }
 
-    // println!("p: {:?}", p);
-    // println!("n: {}", n);
-
     if n < 10 {
         for _i in 0..n {
             let v = rng.gen_range(0..n);
@@ -117,7 +99,6 @@ where
             p.swap(v + 1, u + 3);
             p.swap(v + 2, u + 0);
             p.swap(v + 3, u + 1);
-            // println!("v: {}, u: {}, p: {:?}", v, u, p);
         }
     }
 
