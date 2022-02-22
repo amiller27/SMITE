@@ -12,12 +12,13 @@
 void run_metis(const char *const mat_name, int64_t *const ordering,
                const int64_t n_ordering) {
   const auto rng_trace_filename =
-      fmt::format("/home/aaron/rng_traces/{}.txt", mat_name);
+      fmt::format("/home/aaron/SMITE/test/rng_traces/{}.txt", mat_name);
   gk_random_trace_filename = rng_trace_filename.c_str();
 
   Eigen::SparseMatrix<double> A;
   Eigen::loadMarket(
-      A, fmt::format("/home/aaron/matrices/{}/{}.mtx", mat_name, mat_name));
+      A, fmt::format("/home/aaron/SMITE/test/matrices/{}/{}.mtx", mat_name, mat_name));
+
   Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int64_t> perm{};
   Eigen::MetisOrdering<Eigen::SparseMatrix<double>::StorageIndex>()(A, perm);
 
