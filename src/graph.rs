@@ -49,6 +49,7 @@ pub struct WeightedGraph {
 }
 
 impl WeightedGraph {
+    #[allow(dead_code)]
     pub fn from_unweighted(graph: Graph) -> WeightedGraph {
         let n_vertices = graph.n_vertices();
         WeightedGraph {

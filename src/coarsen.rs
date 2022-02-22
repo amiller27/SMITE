@@ -10,7 +10,7 @@ pub struct CoarseGraphResult {
     pub coarsening_map: Vec<usize>,
 }
 
-const DEBUG_COARSEN: bool = false;
+const DEBUG_COARSEN: bool = true;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -446,12 +446,7 @@ fn create_coarse_graph(
     coarsening_map: Vec<usize>,
 ) -> CoarseGraphResult {
     debug!("CreateCoarseGraph!!!");
-    debug!(
-        "graph: {}, {}: {:?}",
-        graph.graph.n_vertices(),
-        graph.graph.n_edges(),
-        graph.graph.adjacency_lists
-    );
+    debug!("{:?}", graph.graph);
     debug!("coarse_n: {}", coarse_n_vertices);
     debug!("matches: {:?}", matches);
     debug!("coarsening: {:?}", coarsening_map);

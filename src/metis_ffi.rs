@@ -2,9 +2,11 @@ use std::os::raw::c_char;
 
 #[link(name = "metis_test")]
 extern "C" {
+    #[allow(dead_code)]
     fn test(mat_name: *const c_char, ordering: *mut i64, n_ordering: i64) -> bool;
 }
 
+#[allow(dead_code)]
 pub fn metis_test(mat_name: &str, size: usize) -> Vec<usize> {
     let mut metis_ordering = vec![0; size];
 

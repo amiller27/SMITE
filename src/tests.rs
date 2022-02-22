@@ -1,5 +1,6 @@
 use crate::metis_ffi::metis_test;
 
+#[allow(dead_code)]
 fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("TESTING {}", mat_name);
     let graph = crate::io_mtx::read_graph(format!(
