@@ -1,0 +1,9 @@
+[submodule "test/METIS"]
+	path = test/METIS
+	url = https://github.com/amiller27/METIS
+[submodule "test/fmt"]
+	path = test/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "test/eigen"]
+	path = test/eigen
+	url = https://gitlab.com/libeigen/eigen
