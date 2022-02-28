@@ -1,3 +1,5 @@
+# make config shared=1 i64=1 r64=1
+# cmake -B build -DIDXTYPEWIDTH=64 -DREALTYPEWIDTH=64 -DGKRAND_SAVE_TRACE=ON -DCMAKE_INSTALL_PREFIX=./install
 libmetis:
 	cd METIS/build && make -j16
 
