@@ -100,12 +100,12 @@ impl PriorityQueue {
         self.locator[value] = None;
 
         self.n_nodes -= 1;
-        if self.n_nodes > 0 && self.heap.last().unwrap().value != value {
+        if self.n_nodes > 0 && i != self.n_nodes {
             let node = self.heap[self.n_nodes].value;
             let new_key = self.heap[self.n_nodes].priority;
             let old_key = self.heap[i].priority;
 
-            if new_key < old_key {
+            if new_key > old_key {
                 self.up_heap(i, new_key, node);
             } else {
                 self.down_heap(i, new_key, node);

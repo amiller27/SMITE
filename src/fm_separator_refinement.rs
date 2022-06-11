@@ -21,11 +21,21 @@ macro_rules! debug_two {
     };
 }
 
-const DEBUG_ONE_SIDED: bool = false;
+const DEBUG_ONE_SIDED: bool = true;
 
 macro_rules! debug_one {
     ($($x: expr),*) => {
         if DEBUG_ONE_SIDED {
+            println!($($x,)*);
+        }
+    };
+}
+
+const DEBUG_BALANCE: bool = true;
+
+macro_rules! debug_bal {
+    ($($x: expr),*) => {
+        if DEBUG_BALANCE {
             println!($($x,)*);
         }
     };
@@ -367,10 +377,13 @@ pub fn two_way_node_refine_one_sided<RNG>(
 where
     RNG: RangeRng,
 {
-    debug_one!("ENTERING TWO_WAY_NODE_REFINE_ONE_SIDED");
+    debug_one!("CALLED two_way_node_refine_one_sided");
     debug_one!("{:?}", graph);
-    debug_one!("{:?}", boundary_info);
-    debug_one!("{}", n_iterations);
+    debug_one!("where: {:?}", boundary_info._where);
+    debug_one!("partition_weights: {:?}", boundary_info.partition_weights);
+    debug_one!("boundary_ind: {:?}", boundary_info.boundary_ind);
+    debug_one!("boundary_ptr: {:?}", boundary_info.boundary_ptr);
+    debug_one!("n_iterations: {}", n_iterations);
     let mut queue = PriorityQueue::create(graph.graph.n_vertices());
 
     let mult = 0.5 * config.ub_factors[0];
@@ -391,7 +404,11 @@ where
         std::mem::swap(&mut to, &mut other);
         debug_one!("NEW PASS {} ({}, {})", pass, to, other);
 
+        debug_one!("pre reset: {:?}", queue);
+
         queue.reset();
+
+        debug_one!("after reset: {:?}", queue);
 
         let mut min_cut_order = None;
         let init_cut = boundary_info.partition_weights[2];
@@ -403,14 +420,28 @@ where
         let perm =
             crate::random::permutation(n_boundary, n_boundary, crate::random::Mode::Identity, rng);
 
+        debug_one!("perm: {:?}", perm);
+
         for ii in 0..n_boundary {
             let i = boundary_info.boundary_ind[perm[ii]];
+
+            debug_one!("pre insert: {:?}", queue);
+            debug_one!(
+                "i: {}, vwgt: {}, other: {}, deg: {}",
+                i,
+                graph.vertex_weights[i],
+                other,
+                boundary_info.nr_info[i].as_ref().unwrap().e_degrees[other]
+            );
+
             queue.insert(
                 i,
                 (graph.vertex_weights[i]
                     - boundary_info.nr_info[i].as_ref().unwrap().e_degrees[other] as i32)
                     as f32,
             );
+
+            debug_one!("post insert: {:?}", queue);
         }
 
         let limit = if graph_is_compressed {
@@ -427,10 +458,12 @@ where
 
         for n_swaps in 0..graph.graph.n_vertices() {
             debug_one!("SWAP {}", n_swaps);
-            debug_one!("{:?}", boundary_info);
+            debug_one!("where: {:?}", boundary_info._where);
+            debug_one!("partition_weights: {:?}", boundary_info.partition_weights);
+            debug_one!("boundary_ind: {:?}", boundary_info.boundary_ind);
+            debug_one!("boundary_ptr: {:?}", boundary_info.boundary_ptr);
             debug_one!("{:?}", queue);
             debug_one!("to: {}, other: {}", to, other);
-            debug_one!("min_cut_result: {:?}", min_cut_result);
             debug_one!("swaps: {:?}", swaps);
             debug_one!("min_cut_order: {:?}", min_cut_order);
             debug_one!("min_cut: {}", min_cut);
@@ -541,12 +574,14 @@ where
                                 graph.vertex_weights[k] as usize;
 
                             // since the moves are one-sided this vertex has not been moved yet
+                            debug_one!("pre update: {:?}", queue);
                             queue.update(
                                 kk,
                                 (graph.vertex_weights[kk]
                                     - boundary_info.nr_info[kk].as_ref().unwrap().e_degrees[other]
                                         as i32) as f32,
                             );
+                            debug_one!("post update: {:?}", queue);
                         }
                     }
                     boundary_info.nr_info[k] = Some(crate::separator_refinement::NrInfo {
@@ -554,10 +589,12 @@ where
                     });
 
                     // insert the new vertex into the priority queue.  Safe due to one-sided moves
+                    debug_one!("pre insert 2: {:?}", queue);
                     queue.insert(
                         k,
                         (graph.vertex_weights[k] - e_degrees[other] as i32) as f32,
                     );
+                    debug_one!("post insert 2: {:?}", queue);
                 }
             }
 
@@ -621,6 +658,8 @@ where
         }
     }
 
+    debug_one!("EXITED two_way_node_refine_one_sided");
+
     (min_cut_result.unwrap(), boundary_info)
 }
 
@@ -630,6 +669,14 @@ pub fn two_way_node_balance(
     mut boundary_info: BoundaryInfo,
     total_vertex_weights: i32,
 ) -> BoundaryInfo {
+    debug_bal!("CALLED two_way_node_balance");
+
+    debug_one!("{:?}", graph);
+    debug_one!("where: {:?}", boundary_info._where);
+    debug_one!("partition_weights: {:?}", boundary_info.partition_weights);
+    debug_one!("boundary_ind: {:?}", boundary_info.boundary_ind);
+    debug_one!("boundary_ptr: {:?}", boundary_info.boundary_ptr);
+
     let mult = 0.5 * config.ub_factors[0];
 
     let bad_max_partition_weight = (mult
@@ -642,12 +689,14 @@ pub fn two_way_node_balance(
         boundary_info.partition_weights[1],
     ) < bad_max_partition_weight
     {
+        debug_bal!("EARLY EXITED two_way_node_balance");
         return boundary_info;
     }
 
     if (boundary_info.partition_weights[0] - boundary_info.partition_weights[1]).abs()
         < 3 * total_vertex_weights / graph.graph.n_vertices() as i32
     {
+        debug_bal!("EARLY EXITED 2 two_way_node_balance");
         return boundary_info;
     }
 
@@ -680,7 +729,15 @@ pub fn two_way_node_balance(
     }
 
     // Get into the FM loop
-    for _n_swaps in 0..graph.graph.n_vertices() {
+    for n_swaps in 0..graph.graph.n_vertices() {
+        debug_bal!("SWAP {}", n_swaps);
+        debug_bal!("where: {:?}", boundary_info._where);
+        debug_bal!("partition_weights: {:?}", boundary_info.partition_weights);
+        debug_bal!("boundary_ind: {:?}", boundary_info.boundary_ind);
+        debug_bal!("boundary_ptr: {:?}", boundary_info.boundary_ptr);
+        debug_bal!("{:?}", queue);
+        debug_bal!("to: {}, other: {}", to, other);
+
         let maybe_high_gain = queue.pop();
         if maybe_high_gain.is_none() {
             break;
@@ -766,6 +823,8 @@ pub fn two_way_node_balance(
     }
 
     let _min_cut = boundary_info.partition_weights[2];
+
+    debug_bal!("EXITED two_way_node_balance");
 
     boundary_info
 }

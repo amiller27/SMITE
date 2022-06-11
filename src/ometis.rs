@@ -285,7 +285,7 @@ where
 
     // let _where = best_where;
 
-    // let which_graph = separated_graph_pyramid.len() - 1;
+    // let which_graph = separated_graph_pyramid.len();
     // crate::separator_refinement::refine_two_way_node(
     //     config,
     //     separated_graph_pyramid,
@@ -306,20 +306,23 @@ fn m_level_node_bisection_l1<RNG>(
 where
     RNG: RangeRng,
 {
-    let n_vertices = graph.graph.n_vertices();
     let coarsen_to = (graph.graph.n_vertices() / 8).clamp(40, 100);
     let total_weights = graph.vertex_weights.iter().sum();
     let graph_pyramid =
         crate::coarsen::coarsen_graph(config, graph, coarsen_to, total_weights, rng);
+    println!("pyramid: {:?}", graph_pyramid);
+
     let n_i_parts = std::cmp::max(
         1,
-        if n_vertices <= coarsen_to {
+        if graph_pyramid.last().unwrap().graph.graph.n_vertices() <= coarsen_to {
             n_i_parts / 2
         } else {
             n_i_parts
         },
     );
-    println!("pyramid: {:?}", graph_pyramid);
+
+    println!("n_i_parts: {}", n_i_parts);
+
     let separated_graph_pyramid = crate::initialize_partition::initialize_separator(
         config,
         graph_pyramid,
@@ -327,6 +330,8 @@ where
         graph_is_compressed,
         rng,
     );
+
+    println!("separated pyramid: {:?}", separated_graph_pyramid);
     let which_graph = separated_graph_pyramid.len() - 1;
     let boundarized_pyramid = crate::separator_refinement::refine_two_way_node(
         config,

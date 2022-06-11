@@ -16,8 +16,8 @@ FLAGS = $(HEADERS) \
 lib: test.cc libmetis
 	g++ test.cc $(FLAGS) -c -fPIC -shared -o libmetis_test.so
 
-main: main.cc lib
-	g++ main.cc -lmetis_test -L. $(FLAGS) 
-
-run: lib main
-    LD_LIBRARY_PATH=METIS/build/libmetis ./a.out
+# main: main.cc lib
+# 	g++ main.cc -lmetis_test -L. $(FLAGS) 
+# 
+# run: lib main
+#     LD_LIBRARY_PATH=METIS/build/libmetis ./a.out

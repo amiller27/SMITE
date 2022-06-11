@@ -4,7 +4,7 @@ use crate::priority_queue::PriorityQueue;
 use crate::random::RangeRng;
 use crate::refinement::{BoundaryInfo, WhereIdEd};
 
-const DEBUG_FM: bool = false;
+const DEBUG_FM: bool = true;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -53,13 +53,13 @@ fn two_way_cut_refine<RNG>(
 where
     RNG: RangeRng,
 {
-    debug!("ENTER TWO_WAY_CUT_REFINE");
-    debug!("graph:\n{:?}", graph);
-    debug!("tvwgt: {}", total_vertex_weights);
-    debug!("n_t_partition_weights: {:?}", n_t_partition_weights);
-    debug!("min_cut: {}", min_cut);
-    debug!("boundary_info: {:?}", boundary_info);
-    debug!("where_id_ed: {:?}", where_id_ed);
+    debug!("CALLED two_way_cut_refine");
+    debug!("{:?}", graph);
+    // debug!("tvwgt: {}", total_vertex_weights);
+    // debug!("n_t_partition_weights: {:?}", n_t_partition_weights);
+    // debug!("min_cut: {}", min_cut);
+    // debug!("boundary_info: {:?}", boundary_info);
+    // debug!("where_id_ed: {:?}", where_id_ed);
     let total_partition_weights = [
         (total_vertex_weights as f32 * n_t_partition_weights[0]) as i32,
         total_vertex_weights - (total_vertex_weights as f32 * n_t_partition_weights[0]) as i32,
@@ -119,6 +119,8 @@ where
                 (1, 0)
             };
 
+            debug!("swap queues: {:?}", queues);
+
             let maybe_high_gain = queues[from].pop();
             if maybe_high_gain.is_none() {
                 break;
@@ -152,6 +154,8 @@ where
                 break;
             }
 
+            debug!("Picked high_gain: {}", high_gain);
+
             where_id_ed._where[high_gain] = to;
             moved[high_gain] = Some(n_swaps);
             swaps.push(high_gain);
@@ -176,6 +180,12 @@ where
                 where_id_ed.ed[k] -= k_weight;
 
                 // update its boundary information and queue position
+                debug!(
+                    "bndptr: {}, ed: {}, moved: {}",
+                    boundary_info.boundary_ptr[k].is_some() as i32,
+                    where_id_ed.ed[k],
+                    moved[k].is_none() as i32
+                );
                 if boundary_info.boundary_ptr[k].is_some() {
                     // if k was a boundary vertex
                     if where_id_ed.ed[k] == 0 {
@@ -185,11 +195,13 @@ where
                         if moved[k].is_none() {
                             // remove it if in the queues
                             queues[where_id_ed._where[k]].delete(k);
+                            debug!("After delete {} {}: {:?}", where_id_ed._where[k], k, queues);
                         }
                     } else if moved[k].is_none() {
                         // if it has not been moved, update its position in the queue
                         queues[where_id_ed._where[k]]
                             .update(k, (where_id_ed.ed[k] - where_id_ed.id[k]) as f32);
+                        debug!("After update: {:?}", queues);
                     }
                 } else if where_id_ed.ed[k] > 0 {
                     // it will now become a boundary vertex
@@ -198,6 +210,7 @@ where
                     if moved[k].is_none() {
                         queues[where_id_ed._where[k]]
                             .insert(k, (where_id_ed.ed[k] - where_id_ed.id[k]) as f32);
+                        debug!("After insert: {:?}", queues);
                     }
                 }
             }
@@ -263,6 +276,8 @@ where
             break;
         }
     }
+
+    debug!("EXITED two_way_cut_refine");
 
     (min_cut, boundary_info, where_id_ed)
 }

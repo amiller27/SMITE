@@ -5,6 +5,16 @@ use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 use crate::separator_refinement::GraphPyramidLevel;
 
+const DEBUG_INITIALIZE_PARTITION: bool = true;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_INITIALIZE_PARTITION {
+            println!($($x,)*);
+        }
+    };
+}
+
 pub fn initialize_separator<RNG>(
     config: &Config,
     graph_pyramid: Vec<crate::coarsen::CoarseGraphResult>,
@@ -15,6 +25,8 @@ pub fn initialize_separator<RNG>(
 where
     RNG: RangeRng,
 {
+    debug!("CALLED initialize_separator");
+
     let n_t_partition_weights = [0.5, 0.5];
 
     let coarsest_level = graph_pyramid.last().unwrap();
@@ -67,7 +79,7 @@ where
         _ => panic!("WTF"),
     };
 
-    graph_pyramid[..graph_pyramid.len() - 1]
+    let result = graph_pyramid[..graph_pyramid.len() - 1]
         .iter()
         .map(|pyramid_level| GraphPyramidLevel {
             graph: pyramid_level.graph.clone(),
@@ -81,7 +93,11 @@ where
             coarser_graph_where: where_id_ed._where,
             total_vertex_weights: coarsest_level.total_vertex_weights,
         }))
-        .collect()
+        .collect();
+
+    debug!("EXITED initialize_separator");
+
+    result
 }
 
 fn setup_two_way_balance_multipliers(
@@ -115,6 +131,9 @@ fn grow_bisection<RNG>(
 where
     RNG: RangeRng,
 {
+    debug!("CALLED grow_bisection");
+    debug!("n_i_parts: {}", n_i_parts);
+
     // ncon is 1
     let mut boundary_info = crate::refinement::BoundaryInfo {
         partition_weights: [0, 0, 0],
@@ -245,6 +264,7 @@ where
             best_cut = min_cut;
             best_where = where_id_ed._where.clone();
             if best_cut == 0 {
+                debug!("BREAKING grow_bisection");
                 break;
             }
         }
@@ -252,5 +272,8 @@ where
 
     let min_cut = best_cut;
     where_id_ed._where = best_where;
+
+    debug!("EXITED grow_bisection");
+
     (min_cut, where_id_ed, boundary_info)
 }

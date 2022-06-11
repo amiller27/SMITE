@@ -2,6 +2,16 @@ use crate::config::{Config, RefinementType};
 use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 
+const DEBUG_SEPARATOR_REFINEMENT: bool = true;
+
+macro_rules! debug {
+    ($($x: expr),*) => {
+        if DEBUG_SEPARATOR_REFINEMENT {
+            println!($($x,)*);
+        }
+    };
+}
+
 #[derive(Debug)]
 pub struct NrInfo {
     pub e_degrees: [usize; 2],
@@ -61,24 +71,29 @@ pub fn refine_two_way_node<RNG>(
 where
     RNG: RangeRng,
 {
+    debug!("CALLED refine_two_way_node");
+
     let mut boundarized_pyramid = Vec::new();
 
     if graph == org_graph {
         panic!();
     } else {
+        // get rid of this copy?
+        let mut _where = graph_pyramid[graph].coarser_graph_where.clone();
+
         loop {
             graph -= 1;
 
             println!(
-                "graph: {}, where: {:?}",
-                graph,
-                graph_pyramid[graph + 1].coarser_graph_where
+                "graph: {}\nwhere: {:?}",
+                graph_pyramid.len() - graph - 1,
+                _where
             );
             let boundary_info = project_two_way_node_partition(
                 config,
                 &graph_pyramid[graph].graph,
                 &graph_pyramid[graph + 1].coarsening_map,
-                &graph_pyramid[graph + 1].coarser_graph_where,
+                &_where,
             );
 
             // delete graph->coarser
@@ -113,6 +128,8 @@ where
                 _ => panic!("What's this"),
             };
 
+            _where = boundary_info._where.clone();
+
             boundarized_pyramid.push(BoundarizedGraphPyramidLevel {
                 graph: graph_pyramid[graph].graph.clone(), // Eek, this is unnecessary
                 boundary_info: boundary_info,
@@ -124,6 +141,8 @@ where
         }
     }
 
+    debug!("EXITED refine_two_way_node");
+
     boundarized_pyramid
 }
 
@@ -133,6 +152,12 @@ fn project_two_way_node_partition(
     coarsening_map: &Vec<usize>,
     coarser_graph_where: &Vec<usize>,
 ) -> BoundaryInfo {
+    debug!("CALLED project_two_way_node_partition");
+
+    debug!("graph: {:?}", graph);
+    debug!("coarsening_map: {:?}", coarsening_map);
+    debug!("coarser_graph_where: {:?}", coarser_graph_where);
+
     let graph_where = coarsening_map
         .iter()
         .map(|&v| coarser_graph_where[v])
@@ -140,6 +165,8 @@ fn project_two_way_node_partition(
 
     let (partition_weights, graph_boundary_ind, graph_boundary_ptr, graph_nr_info) =
         compute_two_way_node_partitioning_params(config, graph, &graph_where);
+
+    debug!("EXITED project_two_way_node_partition");
 
     BoundaryInfo {
         _where: graph_where,

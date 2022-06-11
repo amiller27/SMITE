@@ -1,4 +1,4 @@
-use crate::metis_ffi::metis_test;
+use crate::metis_ffi::run_metis;
 
 #[allow(dead_code)]
 fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -14,7 +14,7 @@ fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::
         return Ok(());
     }
 
-    let metis_result = metis_test(mat_name, graph.graph.n_vertices());
+    let metis_result = run_metis(mat_name, graph.graph.n_vertices());
     println!("METIS RESULT: {:?}", metis_result);
 
     let mut rng = crate::random::MockRng::from_trace(format!(
@@ -31,22 +31,26 @@ fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+pub fn test_metis_equivalence_all() -> Result<(), Box<dyn std::error::Error>> {
+    let paths = std::fs::read_dir("/home/aaron/SMITE/test/matrices")?;
+
+    for path in paths {
+        if !path.as_ref().unwrap().file_type()?.is_dir() {
+            continue;
+        }
+        let mat_name = path?.file_name().into_string().unwrap();
+        test_metis_equivalence_mat(&mat_name)?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_metis_equivalence() -> Result<(), Box<dyn std::error::Error>> {
-        let paths = std::fs::read_dir("/home/aaron/SMITE/test/matrices")?;
-
-        for path in paths {
-            if !path.as_ref().unwrap().file_type()?.is_dir() {
-                continue;
-            }
-            let mat_name = path?.file_name().into_string().unwrap();
-            test_metis_equivalence_mat(&mat_name)?;
-        }
-
-        Ok(())
+        test_metis_equivalence_all()
     }
 }
