@@ -21,13 +21,14 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
     debug!("HERE BE DRAGONS");
     debug!("THIS IS NOT A PLACE OF HONOR");
-    debug!("{:?}", full_graph);
 
     if full_graph.n_vertices() == 0 {
         panic!();
     }
 
     let mut graph = MutableGraph::from_graph(full_graph);
+
+    debug!("{:?}", graph);
 
     // Never read, REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
     // let mut nnz_upper_bound = 0;
@@ -40,7 +41,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
     // eliminate all isolated nodes
     let mut next_minimum_degree_node = head[0];
     while let ForwardPtr::Next(minimum_degree_node) = next_minimum_degree_node {
-        debug!("mini: {}", minimum_degree_node);
+        debug!("nextmd: {}", minimum_degree_node);
         next_minimum_degree_node = inverse_perm[minimum_degree_node];
         marker[minimum_degree_node] = Marker::Zero;
         inverse_perm[minimum_degree_node] = ForwardPtr::NextNeg(n_ordered_nodes);
@@ -62,18 +63,19 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             i
         );
         i += 1;
-        debug!("{:?}", graph);
+        // debug!("{:?}", graph);
         debug!("head: {:?}", head);
-        debug!("inverse_perm: {:?}", inverse_perm);
-        debug!("perm: {:?}", perm);
-        debug!("qsize: {:?}", qsize);
-        debug!("marker: {:?}", marker);
+        debug!("forward: {:?}", inverse_perm);
+        debug!("backward: {:?}", perm);
+        // debug!("qsize: {:?}", qsize);
+        // debug!("marker: {:?}", marker);
         debug!("n_ordered_nodes: {:?}", n_ordered_nodes);
-        debug!("next_minimum_degree_node: {:?}", next_minimum_degree_node);
+        // debug!("next_minimum_degree_node: {:?}", next_minimum_degree_node);
         debug!("tag: {}", tag);
         debug!("minimum_degree: {}", minimum_degree);
 
-        while matches!(head[minimum_degree], ForwardPtr::None) {
+        while matches!(head[minimum_degree - 1], ForwardPtr::None) {
+            debug!("78 Incremented minimum_degree");
             minimum_degree += 1;
         }
 
@@ -82,12 +84,14 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
         // n500
         loop {
-            let mut maybe_minimum_degree_node = head[minimum_degree];
+            debug!("head: {:?}", head);
+            let mut maybe_minimum_degree_node = head[minimum_degree - 1];
 
             // This can be simplified if DELTA == 1, which is the only way this is used in METIS
             let mut hit_limit = false;
             debug!("minimum degree start: {}", minimum_degree);
             while matches!(maybe_minimum_degree_node, ForwardPtr::None) {
+                debug!("94 Incremented minimum_degree");
                 minimum_degree += 1;
 
                 if minimum_degree > minimum_degree_limit {
@@ -95,9 +99,9 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
                     break;
                 }
 
-                maybe_minimum_degree_node = head[minimum_degree];
+                maybe_minimum_degree_node = head[minimum_degree - 1];
             }
-            debug!("post loop: {}", minimum_degree);
+            // debug!("post loop: {}", minimum_degree);
 
             if hit_limit {
                 break;
@@ -110,9 +114,11 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
             // remove minimum_degree_node from the degree structure
             let next_minimum_degree_node = inverse_perm[minimum_degree_node];
-            head[minimum_degree] = next_minimum_degree_node;
+            debug!("115 Set head {} to {:?}", minimum_degree - 1, next_minimum_degree_node);
+            head[minimum_degree - 1] = next_minimum_degree_node;
             if let ForwardPtr::Next(i) = next_minimum_degree_node {
-                perm[i] = BackPtr::Degree(minimum_degree);
+                debug!("118 Set perm {} to {:?}", i, BackPtr::Degree(minimum_degree - 1));
+                perm[i] = BackPtr::Degree(minimum_degree - 1);
             }
             inverse_perm[minimum_degree_node] = ForwardPtr::NextNeg(n_ordered_nodes);
             // nnz_upper_bound += minimum_degree + qsize[minimum_degree_node] - 1;
@@ -126,7 +132,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             tag += 1;
 
             debug!("ENTER ELIMINATE");
-            let eliminate_result = eliminate(
+            (graph, head, inverse_perm, perm, qsize, marker) = eliminate(
                 minimum_degree_node,
                 graph,
                 head,
@@ -136,12 +142,6 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
                 marker,
                 tag,
             );
-            graph = eliminate_result.0;
-            head = eliminate_result.1;
-            inverse_perm = eliminate_result.2;
-            perm = eliminate_result.3;
-            qsize = eliminate_result.4;
-            marker = eliminate_result.5;
             debug!("EXIT ELIMINATE");
 
             n_ordered_nodes += qsize[minimum_degree_node];
@@ -155,12 +155,12 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
 
         // n900
         // update degrees of the nodes involved in the minimum degree nodes elimination
-        if n_ordered_nodes > graph.n_vertices() {
+        if n_ordered_nodes >= graph.n_vertices() {
             break;
         }
 
         debug!("ENTER UPDATE");
-        let update_result = update(
+        (minimum_degree, head, inverse_perm, perm, qsize, marker, tag) = update(
             ehead,
             &graph,
             DELTA,
@@ -172,13 +172,7 @@ pub fn gen_mmd(full_graph: Graph) -> MMDResult {
             marker,
             tag,
         );
-        minimum_degree = update_result.0;
-        head = update_result.1;
-        inverse_perm = update_result.2;
-        perm = update_result.3;
-        qsize = update_result.4;
-        marker = update_result.5;
-        tag = update_result.6;
+        debug!("Updated minimum_degree to {}", minimum_degree);
         debug!("EXIT UPDATE");
     }
 
@@ -237,8 +231,10 @@ fn initialization(
         };
         head[degree] = ForwardPtr::Next(node);
         if let ForwardPtr::Next(front_node_i) = front_node {
+            debug!("230 Set backward {} to {:?}", front_node_i, BackPtr::Previous(node));
             backward[front_node_i] = BackPtr::Previous(node);
         }
+        debug!("233 Set backward {} to {:?}", node, BackPtr::Degree(degree));
         backward[node] = BackPtr::Degree(degree);
     }
 
@@ -264,12 +260,12 @@ fn eliminate(
 ) {
     debug!("---------- AT START OF ELIMINATE -------------");
     debug!("minimum_degree_node: {}", minimum_degree_node);
-    debug!("{:?}", graph);
+    // debug!("{:?}", graph);
     debug!("head: {:?}", head);
     debug!("forward: {:?}", forward);
     debug!("backward: {:?}", backward);
-    debug!("qsize: {:?}", qsize);
-    debug!("marker: {:?}", marker);
+    //debug!("qsize: {:?}", qsize);
+    //debug!("marker: {:?}", marker);
     debug!("tag: {}", tag);
     debug!("------------ END START OF ELIMINATE --------------");
 
@@ -293,6 +289,15 @@ fn eliminate(
         //     break;
         // }
 
+        let unwrapped_marker = match marker[neighbor] {
+            Marker::Zero => 0,
+            Marker::Tag(t) => t,
+            Marker::Maxint => 10000000,
+        };
+        debug!(
+            "Looking at marker {} {} {}",
+            neighbor, unwrapped_marker, tag
+        );
         if matches!(marker[neighbor], Marker::Zero)
             || matches!(marker[neighbor], Marker::Tag(t) if t < tag)
         {
@@ -346,6 +351,7 @@ fn eliminate(
             // then remove rnode from the structure
             let next_node = forward[rnode];
             if let ForwardPtr::Next(n) = next_node {
+                debug!("348 Set backward {} to {:?}", n, previous_node);
                 backward[n] = previous_node;
             }
 
@@ -354,6 +360,7 @@ fn eliminate(
             }
 
             if let BackPtr::Degree(d) = previous_node {
+                debug!("356 Set head {} to {:?}", d, next_node);
                 head[d] = next_node;
             }
         }
@@ -375,7 +382,7 @@ fn eliminate(
             qsize[minimum_degree_node] += qsize[rnode];
             qsize[rnode] = 0;
             debug!(
-                "313 Setting marker [{}] to maxint {:?}",
+                "313 Setting marker [{}] to {:?}",
                 rnode,
                 Marker::Maxint
             );
@@ -395,13 +402,13 @@ fn eliminate(
 }
 
 fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usize>) -> MMDResult {
-    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     debug!("NUMBERING");
-    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    debug!("in_inverse_perm: {:?}", in_inverse_perm);
-    debug!("qsize: {:?}", qsize);
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    debug!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    //debug!("in_inverse_perm: {:?}", in_inverse_perm);
+    //debug!("qsize: {:?}", qsize);
 
     let mut iperm = vec![ForwardPtr::None; n_vertices];
 
@@ -419,8 +426,8 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
             perm[node] = ForwardPtr::Next(i);
         }
     }
-    debug!("iperm: {:?}", iperm);
-    debug!("perm: {:?}", perm);
+    // debug!("iperm: {:?}", iperm);
+    // debug!("perm: {:?}", perm);
 
     // for each node which has been merged, do the following
     for node in 0..n_vertices {
@@ -458,9 +465,9 @@ fn numbering(n_vertices: usize, in_inverse_perm: Vec<ForwardPtr>, qsize: Vec<usi
         }
     }
 
-    debug!("449 YOLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
-    debug!("iperm: {:?}", iperm);
-    debug!("perm: {:?}", perm);
+    debug!("449 YOLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
+    // debug!("iperm: {:?}", iperm);
+    // debug!("perm: {:?}", perm);
 
     // ready to compute perm
     for node in 0..n_vertices {
@@ -515,7 +522,7 @@ fn update(
     // n100
     for element in ehead {
         // for each of the newly formed elements, do the following.  reset tag value if necessary
-        let m_tag = tag + minimum_degree_0 + 1; // our md0 is offset by 1
+        let m_tag = tag + minimum_degree_0; // our md0 is offset by 1, or is it?
         debug!("Set mtag to tag {} + mdeg0 {}", tag, minimum_degree_0);
         // I _think_ we never have to reset here (assuming we use int64)
         //if m_tag >= max_int {
@@ -609,7 +616,7 @@ fn update(
                                 qsize[enode] += qsize[node];
                                 qsize[node] = 0;
                                 debug!(
-                                    "559 Setting marker [{}] to maxint {:?}",
+                                    "559 Setting marker [{}] to {:?}",
                                     node,
                                     Marker::Maxint
                                 );
@@ -633,13 +640,16 @@ fn update(
             deg -= qsize[enode] as i32 - 1;
             let fnode = head[deg as usize];
             forward[enode] = fnode;
+            debug!("639 Set backward {} to {:?}", enode, BackPtr::Degree(deg as usize));
             backward[enode] = BackPtr::Degree(deg as usize);
             if let ForwardPtr::Next(fnode_i) = fnode {
+                debug!("642 Set backward {} to {:?}", fnode_i, BackPtr::Previous(enode));
                 backward[fnode_i] = BackPtr::Previous(enode);
             }
+            debug!("640 Set head {} to {:?}", deg, ForwardPtr::Next(enode));
             head[deg as usize] = ForwardPtr::Next(enode);
-            if deg < minimum_degree as i32 {
-                minimum_degree = deg as usize; // eek
+            if deg + 1 < minimum_degree as i32 {
+                minimum_degree = (deg + 1) as usize; // eek
             }
         }
 
@@ -694,13 +704,16 @@ fn update(
             deg -= qsize[enode] as i32 - 1;
             let fnode = head[deg as usize];
             forward[enode] = fnode;
+            debug!("639 Set backward {} to {:?}", enode, BackPtr::Degree(deg as usize));
             backward[enode] = BackPtr::Degree(deg as usize);
             if let ForwardPtr::Next(fnode_i) = fnode {
+                debug!("642 Set backward {} to {:?}", fnode_i, BackPtr::Previous(enode));
                 backward[fnode_i] = BackPtr::Previous(enode);
             }
+            debug!("640 Set head {} to {:?}", deg, ForwardPtr::Next(enode));
             head[deg as usize] = ForwardPtr::Next(enode);
-            if deg < minimum_degree as i32 {
-                minimum_degree = deg as usize; // eek
+            if deg + 1 < minimum_degree as i32 {
+                minimum_degree = (deg + 1) as usize; // eek
             }
         }
 

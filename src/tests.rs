@@ -1,4 +1,5 @@
 use crate::metis_ffi::run_metis;
+use std::collections::HashSet;
 
 #[allow(dead_code)]
 fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -34,11 +35,20 @@ fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::
 pub fn test_metis_equivalence_all() -> Result<(), Box<dyn std::error::Error>> {
     let paths = std::fs::read_dir("/home/aaron/SMITE/test/matrices")?;
 
+    //let skip = HashSet::from(["494_bus", "nos5", "bcsstk07"]);
+    let skip = HashSet::<String>::new();
+
     for path in paths {
         if !path.as_ref().unwrap().file_type()?.is_dir() {
             continue;
         }
         let mat_name = path?.file_name().into_string().unwrap();
+
+        if skip.contains(mat_name.as_str()) {
+            println!("Skipping test {}", mat_name);
+            continue;
+        }
+
         test_metis_equivalence_mat(&mat_name)?;
     }
 

@@ -1,4 +1,4 @@
-use crate::config::{Index, Real};
+use crate::config::Index;
 
 const DEBUG_COMPRESS: bool = false;
 
@@ -106,7 +106,7 @@ impl MutableGraph {
     // }
 }
 
-#[derive(PartialOrd, Eq, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct KeyAndValue {
     pub key: usize,
     pub value: usize,
@@ -114,18 +114,27 @@ pub struct KeyAndValue {
 
 impl Ord for KeyAndValue {
     fn cmp(&self, other: &KeyAndValue) -> std::cmp::Ordering {
-        return self.key.cmp(&other.key);
+        self.key.cmp(&other.key)
+    }
+}
+
+impl PartialOrd for KeyAndValue {
+    fn partial_cmp(&self, other: &KeyAndValue) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
 impl PartialEq for KeyAndValue {
     fn eq(&self, other: &KeyAndValue) -> bool {
-        return self.key == other.key;
+        self.key == other.key
     }
 }
 
+impl Eq for KeyAndValue {}
+
 pub fn sort(mut v: Vec<KeyAndValue>) -> Vec<KeyAndValue> {
-    v.sort_unstable();
+    // v.sort_unstable();
+    crate::qsort::quicksort(&mut v);
     v
 }
 
@@ -133,6 +142,8 @@ pub fn compress_graph(
     graph: &Graph,
     vertex_weights: &Vec<Index>,
 ) -> Option<(WeightedGraph, Vec<usize>, Vec<usize>, Vec<usize>)> {
+    debug!("CALLED compress_graph");
+
     // Each key is the sum of the vertex indices that the vertex is adjacent to
     let keys_unsorted = (0..graph.n_vertices())
         .map(|vertex| KeyAndValue {
@@ -157,16 +168,18 @@ pub fn compress_graph(
     let mut compressed_n_vertices = 0;
 
     for i in 0..graph.n_vertices() {
-        let vertex = keys[i].value as usize;
+        let vertex = keys[i].value;
 
         if uncompressed_to_compressed[vertex].is_some() {
             continue;
         }
 
+        debug!("Looking at vertex {}", vertex);
+
         mark[vertex] = Some(i);
 
         for &neighbor in graph.neighbors(vertex) {
-            mark[neighbor] = Some(vertex);
+            mark[neighbor] = Some(i);
         }
 
         uncompressed_to_compressed[vertex] = Some(compressed_n_vertices);
@@ -175,27 +188,34 @@ pub fn compress_graph(
 
         for j in i + 1..graph.n_vertices() {
             let vertex2 = keys[j].value as usize;
+            debug!("Looking at vertex2 {}", vertex2);
 
             // Break if keys or degrees are different
             if keys[i].key != keys[j].key || graph.degree(vertex) != graph.degree(vertex2) {
                 break;
             }
 
+            debug!("SELECTED");
+
             if uncompressed_to_compressed[vertex2].is_some() {
                 continue;
             }
 
+            debug!("SELECTED2");
+
             let mut found_mismatch = false;
             for &neighbor in graph.neighbors(vertex2) {
-                if mark[neighbor].is_none() || mark[neighbor].unwrap() != i {
+                if mark[neighbor] != Some(i) {
                     found_mismatch = true;
                     break;
                 }
             }
 
             if !found_mismatch {
+                debug!("SELECTED3");
                 uncompressed_to_compressed[vertex2] = Some(compressed_n_vertices);
                 compressed_to_uncompressed[compressed_vertex] = vertex2;
+                compressed_vertex += 1;
             }
         }
 
@@ -203,20 +223,25 @@ pub fn compress_graph(
         compressed_to_uncompressed_ptr[compressed_n_vertices] = compressed_vertex;
     }
 
-    const COMPRESSION_FRACTION: Real = 0.85;
-    if (compressed_n_vertices as Real) >= COMPRESSION_FRACTION * (graph.n_vertices() as Real) {
+    const COMPRESSION_FRACTION: f64 = 0.85;
+    if (compressed_n_vertices as f64) >= COMPRESSION_FRACTION * (graph.n_vertices() as f64) {
+        debug!("EXITED compress_graph");
         return None;
     }
 
-    let compressed_n_edges: usize = (0..compressed_n_vertices)
+    debug!("COMPRESSING");
+
+    let compressed_n_edges_bound: usize = (0..compressed_n_vertices)
         .map(|i| graph.degree(compressed_to_uncompressed[compressed_to_uncompressed_ptr[i]]))
         .sum();
 
+    debug!("compressed_n_edges_bound: {}", compressed_n_edges_bound);
+
     mark = vec![None; graph.n_vertices()];
     let mut compressed_vertex_weights = vec![0; compressed_n_vertices];
-    let mut compressed_x_adjacency = vec![0; compressed_n_vertices];
-    let mut compressed_adjacency = vec![0; compressed_n_edges];
-    let mut l = 0;
+    let mut compressed_x_adjacency = vec![0; compressed_n_vertices + 1];
+    let mut compressed_adjacency = vec![0; compressed_n_edges_bound];
+    let mut compressed_n_edges = 0;
     for i in 0..compressed_n_vertices {
         mark[i] = Some(i);
         for j in compressed_to_uncompressed_ptr[i]..compressed_to_uncompressed_ptr[i + 1] {
@@ -224,19 +249,22 @@ pub fn compress_graph(
 
             compressed_vertex_weights[i] += vertex_weights[i];
 
-            for neighbor in graph.neighbors(vertex) {
-                let compressed_vertex = uncompressed_to_compressed[*neighbor].unwrap();
-                if mark[compressed_vertex].is_none() || mark[compressed_vertex].unwrap() != i {
+            for &neighbor in graph.neighbors(vertex) {
+                let compressed_vertex = uncompressed_to_compressed[neighbor].unwrap();
+                if mark[compressed_vertex] != Some(i) {
                     mark[compressed_vertex] = Some(i);
-                    compressed_adjacency[l] = compressed_vertex;
-                    l += 1;
+                    compressed_adjacency[compressed_n_edges] = compressed_vertex;
+                    compressed_n_edges += 1;
                 }
             }
         }
-        compressed_x_adjacency[i + 1] = l;
+        compressed_x_adjacency[i + 1] = compressed_n_edges;
     }
 
-    let n_edges = compressed_adjacency.len();
+    debug!("EXITED compress_graph");
+
+    compressed_adjacency.truncate(compressed_n_edges);
+
     return Some((
         WeightedGraph {
             graph: Graph {
@@ -244,7 +272,7 @@ pub fn compress_graph(
                 adjacency_lists: compressed_adjacency,
             },
             vertex_weights: compressed_vertex_weights,
-            edge_weights: vec![1; n_edges],
+            edge_weights: vec![1; compressed_n_edges],
         },
         compressed_to_uncompressed_ptr,
         compressed_to_uncompressed,

@@ -85,13 +85,6 @@ where
         ),
     };
 
-    debug!(
-        "Compressed: {}, {}: {:?}",
-        compressed_graph.graph.n_vertices(),
-        compressed_graph.graph.n_edges(),
-        compressed_graph.graph.adjacency_lists
-    );
-
     let compressed_n_vertices = compressed_graph.graph.n_vertices();
     let mut inverse_permutation = vec![0; compressed_graph.graph.n_vertices()];
     if config.connected_components_order {
@@ -123,10 +116,15 @@ where
             permutation[inverse_permutation[i]] = i;
         }
 
+        // Resize to full size from compressed size
+        inverse_permutation = vec![0; n_vertices];
+
         let mut l = 0;
         for ii in 0..compressed_n_vertices {
             let i = permutation[ii];
+            debug!("uncompressing i: {}, ii: {}", i, ii);
             for j in compressed_to_uncompressed_ptr[i]..compressed_to_uncompressed_ptr[i + 1] {
+                debug!("uncompressing j: {}, cind: {}", j, compressed_to_uncompressed[j]);
                 inverse_permutation[compressed_to_uncompressed[j]] = l;
                 l += 1;
             }
@@ -164,12 +162,24 @@ fn m_level_nested_dissection<RNG>(
 ) where
     RNG: RangeRng,
 {
+    debug!("CALLED m_level_nested_dissection");
+    debug!("{:?}", graph);
     let n_vertices = graph.graph.n_vertices();
     let boundarized_pyramid =
         m_level_node_bisection_multiple(config, graph, graph_is_compressed, rng);
-    let curr_level = boundarized_pyramid.first().unwrap();
+    let curr_level = boundarized_pyramid.last().unwrap();
 
+    debug!("nbnd: {}", curr_level.boundary_info.boundary_ind.len());
+    // for (i, level) in boundarized_pyramid.iter().enumerate() {
+    //     debug!("i: {}, {:?}", i, level.boundary_info.boundary_ind);
+    // }
     for (i, &vertex) in curr_level.boundary_info.boundary_ind.iter().enumerate() {
+        debug!(
+            "v: {}, label: {}, result: {}",
+            vertex,
+            labels[vertex],
+            first_vertex + n_vertices - i - 1
+        );
         order[labels[vertex]] = first_vertex + n_vertices - i - 1;
     }
 
@@ -306,11 +316,14 @@ fn m_level_node_bisection_l1<RNG>(
 where
     RNG: RangeRng,
 {
+    debug!("CALLED m_level_node_bisection_l1");
+    debug!("{:?}", graph);
+
     let coarsen_to = (graph.graph.n_vertices() / 8).clamp(40, 100);
     let total_weights = graph.vertex_weights.iter().sum();
     let graph_pyramid =
         crate::coarsen::coarsen_graph(config, graph, coarsen_to, total_weights, rng);
-    println!("pyramid: {:?}", graph_pyramid);
+    debug!("pyramid: {:?}", graph_pyramid);
 
     let n_i_parts = std::cmp::max(
         1,
@@ -321,7 +334,7 @@ where
         },
     );
 
-    println!("n_i_parts: {}", n_i_parts);
+    debug!("n_i_parts: {}", n_i_parts);
 
     let separated_graph_pyramid = crate::initialize_partition::initialize_separator(
         config,
@@ -331,7 +344,7 @@ where
         rng,
     );
 
-    println!("separated pyramid: {:?}", separated_graph_pyramid);
+    debug!("separated pyramid: {:?}", separated_graph_pyramid);
     let which_graph = separated_graph_pyramid.len() - 1;
     let boundarized_pyramid = crate::separator_refinement::refine_two_way_node(
         config,
@@ -341,6 +354,8 @@ where
         graph_is_compressed,
         rng,
     );
+
+    debug!("EXITED m_level_node_bisection_l1");
 
     boundarized_pyramid
 }

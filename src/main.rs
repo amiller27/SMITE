@@ -18,6 +18,7 @@ mod refinement;
 mod separator;
 mod separator_refinement;
 mod tests;
+mod qsort;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let mat_name = "494_bus";

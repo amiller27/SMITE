@@ -10,7 +10,7 @@ pub struct CoarseGraphResult {
     pub coarsening_map: Vec<usize>,
 }
 
-const DEBUG_COARSEN: bool = true;
+const DEBUG_COARSEN: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -53,6 +53,7 @@ where
         let last_n_vertices = graph.graph.n_vertices();
 
         debug!("COMPUTING coarse_graph_result");
+        debug!("{:?}", graph);
         let coarse_graph_result = match config.coarsening_type {
             CoarseningType::RM => match_random(config, graph, max_coarsest_vertex_weight, rng),
             CoarseningType::SHEM => {
@@ -100,12 +101,14 @@ where
 {
     debug!("CALLED match_random");
 
+    debug!("Permuting {} vertices with {} shuffles", graph.graph.n_vertices(), graph.graph.n_vertices() / 8);
     let tperm = crate::random::permutation(
         graph.graph.n_vertices(),
         graph.graph.n_vertices() / 8,
         crate::random::Mode::Identity,
         rng,
     );
+    debug!("Done permuting");
 
     // WTFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     let average_degree = (4.0
@@ -381,7 +384,7 @@ fn match_two_hop(
 ) -> usize {
     debug!("CALLED match_two_hop");
 
-    let mut cnv_and_nunmatched = match_two_hop_any(
+    (coarse_n_vertices, n_unmatched) = match_two_hop_any(
         config,
         graph,
         &perm,
@@ -391,10 +394,8 @@ fn match_two_hop(
         2,
         coarsening_map,
     );
-    coarse_n_vertices = cnv_and_nunmatched.0;
-    n_unmatched = cnv_and_nunmatched.1;
 
-    cnv_and_nunmatched = match_two_hop_all(
+    (coarse_n_vertices, n_unmatched) = match_two_hop_all(
         config,
         graph,
         &perm,
@@ -404,13 +405,11 @@ fn match_two_hop(
         64,
         coarsening_map,
     );
-    coarse_n_vertices = cnv_and_nunmatched.0;
-    n_unmatched = cnv_and_nunmatched.1;
 
     if n_unmatched
         > (1.5 * config.unmatched_for_two_hop() * graph.graph.n_vertices() as f32) as usize
     {
-        cnv_and_nunmatched = match_two_hop_any(
+        (coarse_n_vertices, n_unmatched) = match_two_hop_any(
             config,
             graph,
             &perm,
@@ -420,14 +419,12 @@ fn match_two_hop(
             3,
             coarsening_map,
         );
-        coarse_n_vertices = cnv_and_nunmatched.0;
-        n_unmatched = cnv_and_nunmatched.1;
     }
 
     if n_unmatched
         > (2.0 * config.unmatched_for_two_hop() * graph.graph.n_vertices() as f32) as usize
     {
-        cnv_and_nunmatched = match_two_hop_any(
+        (coarse_n_vertices, _) = match_two_hop_any(
             config,
             graph,
             &perm,
@@ -437,9 +434,6 @@ fn match_two_hop(
             graph.graph.n_vertices(),
             coarsening_map,
         );
-        coarse_n_vertices = cnv_and_nunmatched.0;
-        // Unused:
-        // n_unmatched = cnv_and_nunmatched.1;
     }
 
     debug!("EXITING match_two_hop");

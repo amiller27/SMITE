@@ -22,7 +22,7 @@ fn fix(line: &str) -> String {
 }
 
 fn splitlines(line: &str) -> String {
-    let delims = "]})";
+    let delims = "]}),";
 
     let mut out_line = String::new();
     for c in line.chars() {
@@ -60,7 +60,7 @@ fn parse_metis(log: &str) -> (String, String) {
             }
         }
 
-        target.to_owned().push_str(&splitlines(&fix(line)));
+        target.push_str(&splitlines(&fix(line)));
         target.push('\n');
     }
 
@@ -92,7 +92,7 @@ fn parse_smite(log: &str) -> (String, String) {
             }
         }
 
-        target.to_owned().push_str(&splitlines(&fix(line)));
+        target.push_str(&splitlines(&fix(line)));
         target.push('\n');
     }
 
@@ -100,7 +100,7 @@ fn parse_smite(log: &str) -> (String, String) {
 }
 
 #[derive(Parser, Debug)]
-#[clap(name = "script", about = "A script.")]
+#[clap(name = "parse_log")]
 struct Args {
     metis_log_path: String,
     smite_log_path: String,
@@ -109,6 +109,8 @@ struct Args {
 
 fn main() -> std::io::Result<()> {
     let opt = Args::from_args();
+
+    println!("Parsing logs...");
 
     let metis_log = fs::read_to_string(&opt.metis_log_path)?;
     let smite_log = fs::read_to_string(&opt.smite_log_path)?;

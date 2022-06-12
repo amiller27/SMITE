@@ -5,7 +5,7 @@ use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 use crate::separator_refinement::GraphPyramidLevel;
 
-const DEBUG_INITIALIZE_PARTITION: bool = true;
+const DEBUG_INITIALIZE_PARTITION: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {

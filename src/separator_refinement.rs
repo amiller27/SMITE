@@ -2,7 +2,7 @@ use crate::config::{Config, RefinementType};
 use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 
-const DEBUG_SEPARATOR_REFINEMENT: bool = true;
+const DEBUG_SEPARATOR_REFINEMENT: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -84,7 +84,7 @@ where
         loop {
             graph -= 1;
 
-            println!(
+            debug!(
                 "graph: {}\nwhere: {:?}",
                 graph_pyramid.len() - graph - 1,
                 _where
@@ -103,6 +103,7 @@ where
                 &graph_pyramid[graph].graph,
                 boundary_info,
                 graph_pyramid[graph].total_vertex_weights,
+                rng,
             );
 
             let (_min_cut, boundary_info) = match config.refinement_type {

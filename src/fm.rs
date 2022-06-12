@@ -4,7 +4,7 @@ use crate::priority_queue::PriorityQueue;
 use crate::random::RangeRng;
 use crate::refinement::{BoundaryInfo, WhereIdEd};
 
-const DEBUG_FM: bool = true;
+const DEBUG_FM: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {

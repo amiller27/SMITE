@@ -1,3 +1,4 @@
 *.so
 *.out
 *-out.txt
+/rng_traces
