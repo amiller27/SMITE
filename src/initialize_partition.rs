@@ -1,11 +1,7 @@
-extern crate rand;
-
-use crate::config::{Config, InitialPartitioningType};
+use crate::config::{Config, InitialPartitioningType, DEBUG_INITIALIZE_PARTITION};
 use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 use crate::separator_refinement::GraphPyramidLevel;
-
-const DEBUG_INITIALIZE_PARTITION: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -43,7 +39,15 @@ where
         InitialPartitioningType::EDGE => {
             let (_min_cut, where_id_ed, _boundary_info) =
                 if coarsest_level.graph.graph.adjacency_lists.len() == 0 {
-                    panic!("Not implemented")
+                    random_bisection(
+                        config,
+                        &coarsest_level.graph,
+                        n_t_partition_weights,
+                        n_i_parts,
+                        coarsest_level.total_vertex_weights,
+                        balance_multipliers,
+                        rng,
+                    )
                 } else {
                     grow_bisection(
                         config,
@@ -98,6 +102,135 @@ where
     debug!("EXITED initialize_separator");
 
     result
+}
+
+fn random_bisection<RNG>(
+    config: &Config,
+    graph: &WeightedGraph,
+    n_t_partition_weights: [f32; 2],
+    n_i_parts: usize,
+    total_vertex_weights: i32,
+    balance_multipliers: Vec<f32>,
+    rng: &mut RNG,
+) -> (
+    i32,
+    crate::refinement::WhereIdEd,
+    crate::refinement::BoundaryInfo,
+)
+where
+    RNG: RangeRng,
+{
+    // Some duplication here with grow_bisection
+
+    debug!("CALLED random_bisection");
+    debug!("n_i_parts: {}", n_i_parts);
+
+    // ncon is 1
+    let mut boundary_info = crate::refinement::BoundaryInfo {
+        partition_weights: [0, 0, 0],
+        boundary_ind: Vec::new(),
+        boundary_ptr: vec![None; graph.graph.n_vertices()],
+    };
+
+    let mut where_id_ed = crate::refinement::WhereIdEd {
+        _where: vec![0; graph.graph.n_vertices()],
+        id: vec![0; graph.graph.n_vertices()],
+        ed: vec![0; graph.graph.n_vertices()],
+    };
+
+    let mut best_cut = 0;
+    let mut best_where = vec![0; graph.graph.n_vertices()];
+
+    let zero_max_partition_weight =
+        (config.ub_factors[0] * total_vertex_weights as f32 * n_t_partition_weights[1]) as i32;
+
+    for i_n_bfs in 0..n_i_parts {
+        let mut _where = vec![1; graph.graph.n_vertices()];
+
+        if i_n_bfs > 0 {
+            let perm = crate::random::permutation(
+                graph.graph.n_vertices(),
+                graph.graph.n_vertices() / 2,
+                crate::random::Mode::Identity,
+                rng,
+            );
+
+            boundary_info.partition_weights[1] = total_vertex_weights;
+            boundary_info.partition_weights[0] = 0;
+
+            for i in perm {
+                if boundary_info.partition_weights[0] + graph.vertex_weights[i]
+                    < zero_max_partition_weight
+                {
+                    _where[i] = 0;
+                    boundary_info.partition_weights[0] += graph.vertex_weights[i];
+                    boundary_info.partition_weights[1] -= graph.vertex_weights[i];
+                    if boundary_info.partition_weights[0] > zero_max_partition_weight {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // do some partition refinement
+        let partitioning_params = crate::refinement::compute_two_way_partitioning_params(
+            config,
+            graph,
+            crate::refinement::WhereIdEd {
+                _where,
+                id: vec![0; graph.graph.n_vertices()],
+                ed: vec![0; graph.graph.n_vertices()],
+            },
+        );
+        let min_cut = partitioning_params.0;
+        where_id_ed = partitioning_params.1;
+        boundary_info = partitioning_params.2;
+
+        let balance_results = crate::balance::balance_two_way(
+            config,
+            graph,
+            boundary_info,
+            where_id_ed,
+            min_cut,
+            n_t_partition_weights,
+            total_vertex_weights,
+            &balance_multipliers,
+            rng,
+        );
+        let min_cut = balance_results.0;
+        boundary_info = balance_results.1;
+        where_id_ed = balance_results.2;
+
+        let new_boundary = crate::fm::two_way_refine(
+            config,
+            graph,
+            total_vertex_weights,
+            n_t_partition_weights,
+            min_cut,
+            boundary_info,
+            where_id_ed,
+            rng,
+        );
+        let min_cut = new_boundary.0;
+        boundary_info = new_boundary.1;
+        where_id_ed = new_boundary.2;
+
+        if i_n_bfs == 0 || best_cut > min_cut {
+            best_cut = min_cut;
+            best_where = where_id_ed._where.clone();
+            if best_cut == 0 {
+                debug!("BREAKING grow_bisection");
+                break;
+            }
+        }
+    }
+
+    let min_cut = best_cut;
+    where_id_ed._where = best_where;
+
+    debug!("EXITED grow_bisection");
+
+    (min_cut, where_id_ed, boundary_info)
 }
 
 fn setup_two_way_balance_multipliers(
@@ -239,12 +372,20 @@ where
         where_id_ed = partitioning_params.1;
         boundary_info = partitioning_params.2;
 
-        // does nothing? at least right now...
-        crate::balance::balance_two_way(
+        let balance_results = crate::balance::balance_two_way(
             config,
-            boundary_info.partition_weights,
+            graph,
+            boundary_info,
+            where_id_ed,
+            min_cut,
+            n_t_partition_weights,
+            total_vertex_weights,
             &balance_multipliers,
+            rng,
         );
+        let min_cut = balance_results.0;
+        boundary_info = balance_results.1;
+        where_id_ed = balance_results.2;
 
         let new_boundary = crate::fm::two_way_refine(
             config,

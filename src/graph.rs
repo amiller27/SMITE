@@ -1,6 +1,4 @@
-use crate::config::Index;
-
-const DEBUG_COMPRESS: bool = false;
+use crate::config::{Index, DEBUG_COMPRESS};
 
 macro_rules! debug {
     ($($x: expr),*) => {

@@ -35,8 +35,11 @@ fn test_metis_equivalence_mat(mat_name: &str) -> Result<(), Box<dyn std::error::
 pub fn test_metis_equivalence_all() -> Result<(), Box<dyn std::error::Error>> {
     let paths = std::fs::read_dir("/home/aaron/SMITE/test/matrices")?;
 
-    //let skip = HashSet::from(["494_bus", "nos5", "bcsstk07"]);
-    let skip = HashSet::<String>::new();
+    let skip = HashSet::from([
+        "494_bus", "nos5", "bcsstk07", "ex10", "bcsstm19", "mesh3e1", "msc04515", "bcsstk19",
+        "plat362",
+    ]);
+    // let skip = HashSet::<String>::new();
 
     for path in paths {
         if !path.as_ref().unwrap().file_type()?.is_dir() {

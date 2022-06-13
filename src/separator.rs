@@ -1,9 +1,7 @@
-use crate::config::Config;
+use crate::config::{Config, DEBUG_SEPARATOR};
 use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
 use crate::refinement::{BoundaryInfo, WhereIdEd};
-
-const DEBUG_SEPARATOR: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {

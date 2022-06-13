@@ -1,3 +1,4 @@
+use crate::config::DEBUG_RANDOM;
 use std::convert::TryInto;
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -5,8 +6,6 @@ use std::path::Path;
 extern crate core;
 extern crate rand;
 extern crate rand_core;
-
-const DEBUG_RANDOM: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {

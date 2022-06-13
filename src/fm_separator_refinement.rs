@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, DEBUG_TWO_SIDED, DEBUG_ONE_SIDED, DEBUG_BALANCE};
 use crate::graph::WeightedGraph;
 use crate::priority_queue::PriorityQueue;
 use crate::random::RangeRng;
@@ -11,8 +11,6 @@ enum Moved {
     Neg(usize),
 }
 
-const DEBUG_TWO_SIDED: bool = false;
-
 macro_rules! debug_two {
     ($($x: expr),*) => {
         if DEBUG_TWO_SIDED {
@@ -21,8 +19,6 @@ macro_rules! debug_two {
     };
 }
 
-const DEBUG_ONE_SIDED: bool = false;
-
 macro_rules! debug_one {
     ($($x: expr),*) => {
         if DEBUG_ONE_SIDED {
@@ -30,8 +26,6 @@ macro_rules! debug_one {
         }
     };
 }
-
-const DEBUG_BALANCE: bool = false;
 
 macro_rules! debug_bal {
     ($($x: expr),*) => {

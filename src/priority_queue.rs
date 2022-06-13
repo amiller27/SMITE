@@ -14,6 +14,10 @@ pub struct PriorityQueue {
 }
 
 impl PriorityQueue {
+    pub fn is_empty(&self) -> bool {
+        self.n_nodes == 0
+    }
+
     fn up_heap(&mut self, mut i: usize, priority: f32, value: usize) {
         while i > 0 {
             let j = (i - 1) >> 1;

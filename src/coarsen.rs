@@ -1,4 +1,4 @@
-use crate::config::{CoarseningType, Config};
+use crate::config::{CoarseningType, Config, DEBUG_COARSEN};
 use crate::graph::{Graph, WeightedGraph};
 use crate::random::RangeRng;
 use std::convert::TryFrom;
@@ -9,8 +9,6 @@ pub struct CoarseGraphResult {
     pub total_vertex_weights: i32,
     pub coarsening_map: Vec<usize>,
 }
-
-const DEBUG_COARSEN: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -100,6 +98,7 @@ where
     RNG: RangeRng,
 {
     debug!("CALLED match_random");
+    debug!("{:?}", graph);
 
     debug!("Permuting {} vertices with {} shuffles", graph.graph.n_vertices(), graph.graph.n_vertices() / 8);
     let tperm = crate::random::permutation(
@@ -147,6 +146,10 @@ where
                     last_unmatched = std::cmp::max(pi, last_unmatched) + 1;
 
                     loop {
+                        if last_unmatched >= graph.graph.n_vertices() {
+                            break;
+                        }
+
                         let j = perm[last_unmatched];
                         if let Match::Unmatched = matches[j] {
                             max_idx = Match::Matched(j);
@@ -154,9 +157,6 @@ where
                         }
 
                         last_unmatched += 1;
-                        if last_unmatched == graph.graph.n_vertices() {
-                            break;
-                        }
                     }
                 } else {
                     // Find a random matching, subject to max_coarsest_vertex_weight constraints

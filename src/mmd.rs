@@ -1,12 +1,10 @@
-use crate::config::Index;
+use crate::config::{Index, DEBUG_MMD};
 use crate::graph::{Graph, MutableGraph};
 
 pub struct MMDResult {
     pub iperm: Vec<usize>,
     pub perm: Vec<usize>,
 }
-
-const DEBUG_MMD: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {

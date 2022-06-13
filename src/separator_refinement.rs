@@ -1,8 +1,6 @@
-use crate::config::{Config, RefinementType};
+use crate::config::{Config, RefinementType, Index, DEBUG_SEPARATOR_REFINEMENT};
 use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
-
-const DEBUG_SEPARATOR_REFINEMENT: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -67,13 +65,14 @@ pub fn refine_two_way_node<RNG>(
     mut graph: usize,
     graph_is_compressed: bool,
     rng: &mut RNG,
-) -> Vec<BoundarizedGraphPyramidLevel>
+) -> (Vec<BoundarizedGraphPyramidLevel>, Index)
 where
     RNG: RangeRng,
 {
     debug!("CALLED refine_two_way_node");
 
     let mut boundarized_pyramid = Vec::new();
+    let mut min_cut;
 
     if graph == org_graph {
         panic!();
@@ -106,7 +105,7 @@ where
                 rng,
             );
 
-            let (_min_cut, boundary_info) = match config.refinement_type {
+            let (new_min_cut, boundary_info) = match config.refinement_type {
                 RefinementType::SEP1SIDED => {
                     crate::fm_separator_refinement::two_way_node_refine_one_sided(
                         config,
@@ -129,6 +128,7 @@ where
                 _ => panic!("What's this"),
             };
 
+            min_cut = new_min_cut;
             _where = boundary_info._where.clone();
 
             boundarized_pyramid.push(BoundarizedGraphPyramidLevel {
@@ -144,7 +144,7 @@ where
 
     debug!("EXITED refine_two_way_node");
 
-    boundarized_pyramid
+    (boundarized_pyramid, min_cut)
 }
 
 fn project_two_way_node_partition(

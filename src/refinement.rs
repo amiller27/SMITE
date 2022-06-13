@@ -26,6 +26,10 @@ impl BoundaryInfo {
         self.boundary_ind.push(i);
         self.boundary_ptr[i] = Some(self.boundary_ind.len() - 1);
     }
+
+    pub fn len(&self) -> usize {
+        self.boundary_ind.len()
+    }
 }
 
 #[derive(Debug)]
@@ -38,6 +42,7 @@ pub struct WhereIdEd {
 pub fn compute_two_way_partitioning_params(
     _config: &Config,
     graph: &WeightedGraph,
+    // I think this is only a function of where_id_ed.where
     mut where_id_ed: WhereIdEd,
 ) -> (i32, WhereIdEd, BoundaryInfo) {
     // ncon had better be 1!!!!

@@ -1,10 +1,8 @@
-use crate::config::{Config, Index};
+use crate::config::{Config, Index, DEBUG_OMETIS};
 use crate::graph::{compress_graph, Graph, WeightedGraph};
 use crate::random::RangeRng;
 use std::error::Error;
 use std::fmt;
-
-const DEBUG_OMETIS: bool = false;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -58,18 +56,31 @@ where
     };
 
     let n_vertices = graph.n_vertices();
-    let (compressed_graph, info, labels) = match maybe_compressed_graph {
+    let (config, compressed_graph, info, labels) = match maybe_compressed_graph {
         Some((
             compressed_graph,
             compressed_to_uncompressed_ptr,
             compressed_to_uncompressed,
             labels,
         )) => (
+            Config {
+                n_separators: (if (graph.n_vertices() as f64
+                    / compressed_graph.graph.n_vertices() as f64)
+                    > 1.5
+                    && config.n_separators == 1
+                {
+                    2
+                } else {
+                    config.n_separators
+                }),
+                ..config
+            },
             compressed_graph,
             GraphData::Compressed(compressed_to_uncompressed_ptr, compressed_to_uncompressed),
             labels,
         ),
         None => (
+            config,
             match vertex_weights {
                 weights => {
                     let n_edges = graph.n_edges();
@@ -124,7 +135,10 @@ where
             let i = permutation[ii];
             debug!("uncompressing i: {}, ii: {}", i, ii);
             for j in compressed_to_uncompressed_ptr[i]..compressed_to_uncompressed_ptr[i + 1] {
-                debug!("uncompressing j: {}, cind: {}", j, compressed_to_uncompressed[j]);
+                debug!(
+                    "uncompressing j: {}, cind: {}",
+                    j, compressed_to_uncompressed[j]
+                );
                 inverse_permutation[compressed_to_uncompressed[j]] = l;
                 l += 1;
             }
@@ -236,13 +250,48 @@ fn m_level_node_bisection_multiple<RNG>(
 where
     RNG: RangeRng,
 {
+    debug!("CALLED m_level_node_bisection_multiple");
+
+    debug!("nseps: {}", config.n_separators);
     if config.n_separators == 1
-        || graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_multiple()
+        || graph.graph.n_vertices()
+            < config.single_separator_threshold_node_bisection_multiple(graph_is_compressed)
     {
-        return m_level_node_bisection_l2(config, graph, graph_is_compressed, rng);
-    } else {
-        panic!();
+        let (result, _min_cut) = m_level_node_bisection_l2(config, graph, graph_is_compressed, rng);
+        debug!("EARLY EXITED m_level_node_bisection_multiple");
+        return result;
     }
+
+    // The METIS implementation of this does a little less allocation and
+    // copying, but I'm pretty sure the intent is just to do this, i.e. compute
+    // this multiple times and pick the best based on min_cut
+
+    let mut best_result = None;
+    let mut best_min_cut = 0;
+    for i in 0..config.n_separators {
+        let (result, min_cut) =
+            m_level_node_bisection_l2(config, graph.clone(), graph_is_compressed, rng);
+
+        debug!("min_cut: {}", min_cut);
+        if i == 0
+            || min_cut < best_min_cut
+            // doesn't change the min_cut of the best result, just for equivalence with METIS
+            || (i == config.n_separators - 1 && min_cut == best_min_cut)
+        {
+            best_result = Some(result);
+            best_min_cut = min_cut;
+        }
+
+        if min_cut == 0 {
+            break;
+        }
+    }
+
+    debug!("best_min_cut: {}", best_min_cut);
+
+    debug!("EXITED m_level_node_bisection_multiple");
+
+    best_result.unwrap()
 }
 
 fn m_level_node_bisection_l2<RNG>(
@@ -250,18 +299,25 @@ fn m_level_node_bisection_l2<RNG>(
     graph: WeightedGraph,
     graph_is_compressed: bool,
     rng: &mut RNG,
-) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
+) -> (
+    Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>,
+    Index,
+)
 where
     RNG: RangeRng,
 {
+    debug!("CALLED m_level_node_bisection_l2");
+
     if graph.graph.n_vertices() < config.single_separator_threshold_node_bisection_l2() {
-        return m_level_node_bisection_l1(
+        let result = m_level_node_bisection_l1(
             config,
             graph,
             graph_is_compressed,
             config.init_n_i_parts(),
             rng,
         );
+        debug!("EARLY EXITED m_level_node_bisection_l2");
+        return result;
     }
 
     panic!();
@@ -304,6 +360,8 @@ where
     //     graph_is_compressed,
     //     rng,
     // )
+
+    // debug!("EXITED m_level_node_bisection_l2");
 }
 
 fn m_level_node_bisection_l1<RNG>(
@@ -312,7 +370,10 @@ fn m_level_node_bisection_l1<RNG>(
     graph_is_compressed: bool,
     n_i_parts: usize,
     rng: &mut RNG,
-) -> Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>
+) -> (
+    Vec<crate::separator_refinement::BoundarizedGraphPyramidLevel>,
+    Index,
+)
 where
     RNG: RangeRng,
 {
@@ -346,7 +407,7 @@ where
 
     debug!("separated pyramid: {:?}", separated_graph_pyramid);
     let which_graph = separated_graph_pyramid.len() - 1;
-    let boundarized_pyramid = crate::separator_refinement::refine_two_way_node(
+    let (boundarized_pyramid, min_cut) = crate::separator_refinement::refine_two_way_node(
         config,
         separated_graph_pyramid,
         0,
@@ -357,7 +418,7 @@ where
 
     debug!("EXITED m_level_node_bisection_l1");
 
-    boundarized_pyramid
+    (boundarized_pyramid, min_cut)
 }
 
 fn split_graph_order(

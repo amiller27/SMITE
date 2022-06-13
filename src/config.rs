@@ -61,8 +61,8 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn single_separator_threshold_node_bisection_multiple(&self) -> usize {
-        if self.compress_before_ordering {
+    pub fn single_separator_threshold_node_bisection_multiple(&self, compressed: bool) -> usize {
+        if compressed {
             1000
         } else {
             2000
@@ -124,3 +124,16 @@ pub fn default_config() -> Config {
         ],
     }
 }
+
+pub const DEBUG_COARSEN: bool = false;
+pub const DEBUG_TWO_SIDED: bool = false;
+pub const DEBUG_ONE_SIDED: bool = false;
+pub const DEBUG_BALANCE: bool = false;
+pub const DEBUG_FM: bool = false;
+pub const DEBUG_COMPRESS: bool = false;
+pub const DEBUG_INITIALIZE_PARTITION: bool = false;
+pub const DEBUG_MMD: bool = false;
+pub const DEBUG_OMETIS: bool = false;
+pub const DEBUG_RANDOM: bool = false;
+pub const DEBUG_SEPARATOR_REFINEMENT: bool = false;
+pub const DEBUG_SEPARATOR: bool = false;
