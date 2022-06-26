@@ -37,7 +37,7 @@ pub fn test_metis_equivalence_all() -> Result<(), Box<dyn std::error::Error>> {
 
     let skip = HashSet::from([
         "494_bus", "nos5", "bcsstk07", "ex10", "bcsstm19", "mesh3e1", "msc04515", "bcsstk19",
-        "plat362",
+        "plat362", "bcsstk20", "bcsstk21",
     ]);
     // let skip = HashSet::<String>::new();
 

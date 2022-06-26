@@ -135,6 +135,9 @@ where
     for pi in 0..graph.graph.n_vertices() {
         let i = perm[pi];
 
+        debug!("loop i: {}, cnvtxs: {}", i, coarse_n_vertices);
+        debug!("matches: {:?}", matches);
+
         if let Match::Unmatched = matches[i] {
             let mut max_idx = Match::Matched(i);
 
@@ -190,6 +193,7 @@ where
     }
 
     debug!("[LINE 184]");
+    debug!("matches: {:?}", matches);
 
     let n_vertices = graph.graph.n_vertices();
     if config.two_hop_matching
@@ -207,6 +211,8 @@ where
             &mut coarsening_map,
         );
     }
+
+    debug!("matches: {:?}", matches);
 
     coarse_n_vertices = 0;
     for i in 0..n_vertices {
@@ -384,6 +390,8 @@ fn match_two_hop(
 ) -> usize {
     debug!("CALLED match_two_hop");
 
+    debug!("393 matches: {:?}", matches);
+
     (coarse_n_vertices, n_unmatched) = match_two_hop_any(
         config,
         graph,
@@ -395,6 +403,8 @@ fn match_two_hop(
         coarsening_map,
     );
 
+    debug!("406 matches: {:?}", matches);
+
     (coarse_n_vertices, n_unmatched) = match_two_hop_all(
         config,
         graph,
@@ -405,6 +415,8 @@ fn match_two_hop(
         64,
         coarsening_map,
     );
+
+    debug!("419 matches: {:?}", matches);
 
     if n_unmatched
         > (1.5 * config.unmatched_for_two_hop() * graph.graph.n_vertices() as f32) as usize
@@ -420,6 +432,8 @@ fn match_two_hop(
             coarsening_map,
         );
     }
+
+    debug!("436 matches: {:?}", matches);
 
     if n_unmatched
         > (2.0 * config.unmatched_for_two_hop() * graph.graph.n_vertices() as f32) as usize
@@ -536,11 +550,13 @@ fn match_two_hop_all(
     }
     let keys = crate::graph::sort(keys_unsorted);
 
+    debug!("keys: {:?}", keys);
+
     let mut mark = vec![0; graph.graph.n_vertices()];
     for pi in 0..keys.len() {
         let i = keys[pi].value;
 
-        if matches!(matches[i], Match::Unmatched) {
+        if !matches!(matches[i], Match::Unmatched) {
             continue;
         }
 
@@ -551,7 +567,7 @@ fn match_two_hop_all(
         for pk in pi + 1..keys.len() {
             let k = keys[pk].value;
 
-            if matches!(matches[k], Match::Unmatched) {
+            if !matches!(matches[k], Match::Unmatched) {
                 continue;
             }
 
@@ -593,7 +609,7 @@ fn create_coarse_graph(
     matches: Vec<Match>,
     coarsening_map: Vec<usize>,
 ) -> CoarseGraphResult {
-    debug!("CreateCoarseGraph!!!");
+    debug!("CALLED create_coarse_graph");
     debug!("{:?}", graph);
     debug!("coarse_n: {}", coarse_n_vertices);
     debug!("matches: {:?}", matches);

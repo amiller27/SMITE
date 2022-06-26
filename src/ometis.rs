@@ -416,6 +416,8 @@ where
         rng,
     );
 
+    debug!("boundarized pyramid: {:?}", boundarized_pyramid);
+
     debug!("EXITED m_level_node_bisection_l1");
 
     (boundarized_pyramid, min_cut)

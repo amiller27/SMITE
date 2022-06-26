@@ -1,6 +1,7 @@
-use crate::config::{Config, RefinementType, Index, DEBUG_SEPARATOR_REFINEMENT};
+use crate::config::{Config, Index, RefinementType, DEBUG_SEPARATOR_REFINEMENT};
 use crate::graph::WeightedGraph;
 use crate::random::RangeRng;
+use std::fmt;
 
 macro_rules! debug {
     ($($x: expr),*) => {
@@ -15,13 +16,24 @@ pub struct NrInfo {
     pub e_degrees: [usize; 2],
 }
 
-#[derive(Debug)]
 pub struct BoundaryInfo {
     pub _where: Vec<usize>,
     pub partition_weights: [i32; 3],
     pub boundary_ind: Vec<usize>,
     pub boundary_ptr: Vec<Option<usize>>,
     pub nr_info: Vec<Option<NrInfo>>,
+}
+
+impl fmt::Debug for BoundaryInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // skip nr_info since it's super annoying to print from metis
+        f.debug_struct("BoundaryInfo")
+            .field("_where", &self._where)
+            .field("partition_weights", &self.partition_weights)
+            .field("boundary_ind", &self.boundary_ind)
+            .field("boundary_ptr", &self.boundary_ptr)
+            .finish()
+    }
 }
 
 impl BoundaryInfo {
@@ -52,6 +64,7 @@ pub struct GraphPyramidLevel {
     pub total_vertex_weights: i32,
 }
 
+#[derive(Debug)]
 pub struct BoundarizedGraphPyramidLevel {
     pub graph: WeightedGraph,
     // Do we need this whole thing?
